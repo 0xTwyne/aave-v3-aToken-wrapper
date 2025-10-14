@@ -6,6 +6,8 @@ import {EVCUtil} from "ethereum-vault-connector/utils/EVCUtil.sol";
 import {ERC20PermitUpgradeable, ERC20AaveLMUpgradeable, IRewardsController, ERC4626StataTokenUpgradeable, PausableUpgradeable, IStataTokenV2, ERC4626Upgradeable, IPool as IAaveV3Pool, Math, IERC20Permit, ERC20Upgradeable} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
 import {OwnableUpgradeable, ContextUpgradeable} from "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IERC20}  from "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {UUPSUpgradeable}  from "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/proxy/utils/UUPSUpgradeable.sol";
+
 
 interface ICollateralVaultFactory {
     function isCollateralVault(address) external view returns (bool);
@@ -20,6 +22,7 @@ contract AaveV3ATokenWrapper is
     ERC4626StataTokenUpgradeable,
     PausableUpgradeable,
     OwnableUpgradeable,
+    UUPSUpgradeable,
     EVCUtil
 {
     ICollateralVaultFactory public immutable collateralVaultFactory;
@@ -39,6 +42,8 @@ contract AaveV3ATokenWrapper is
         collateralVaultFactory = ICollateralVaultFactory(_collateralVaultFactory);
     }
 
+
+    function _authorizeUpgrade(address) internal onlyOwner virtual override {} 
 
     function _msgSender() internal view override(ContextUpgradeable, EVCUtil) returns (address) {
         return EVCUtil._msgSender();
@@ -103,9 +108,9 @@ contract AaveV3ATokenWrapper is
         uint actualATokenAmount = _aToken.balanceOf(msg.sender);
 
         if (expectedATokenAmount < actualATokenAmount) {
-            _aToken.transfer(msg.sender, actualATokenAmount - expectedATokenAmount);
+            _aToken.transferFrom(msg.sender, address(this), actualATokenAmount - expectedATokenAmount);
         } else {
-            _aToken.transferFrom(msg.sender, address(this), expectedATokenAmount - actualATokenAmount);
+            _aToken.transfer(msg.sender, expectedATokenAmount - actualATokenAmount);
         }
     }
 
