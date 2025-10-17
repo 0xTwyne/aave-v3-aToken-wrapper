@@ -12,10 +12,12 @@ import {IAToken} from "aave-v3/interfaces/IAToken.sol";
 
 
 interface ICollateralVaultFactory {
+    function EVC() external view returns (address);
     function isCollateralVault(address) external view returns (bool);
 }
 
 error NotCollateralVault();
+error IncorrectEVC();
 
 /// @title AaveV3ATokenWrapper
 /// @notice ERC4626 wrapper for Aave V3 aTokens to convert rebasing tokens to non-rebasing shares
@@ -46,6 +48,7 @@ contract AaveV3ATokenWrapper is
         ERC4626StataTokenUpgradeable(_aavePool)
     {
         collateralVaultFactory = ICollateralVaultFactory(_collateralVaultFactory);
+        require(collateralVaultFactory.EVC() == _evc, IncorrectEVC());
         _disableInitializers();
     }
 

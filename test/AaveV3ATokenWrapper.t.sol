@@ -7,10 +7,15 @@ import {IERC20}  from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20}  from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IAToken} from "aave-v3/interfaces/IAToken.sol";
+import {AToken} from "aave-v3/protocol/tokenization/AToken.sol";
 
 contract MockCollateralVaultFactory {
-
+    address public immutable EVC;
     mapping(address => bool) isCollateral;
+
+    constructor(address _evc) {
+        EVC = _evc;
+    }
 
     function setIsCollateral(address asset, bool status) external {
         isCollateral[asset] = status;
@@ -24,10 +29,10 @@ contract MockCollateralVaultFactory {
 contract AaveV3ATokenWrapperTest is Test {
     AaveV3ATokenWrapper tokenWrapper;
 
-    address WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
     MockCollateralVaultFactory collateralVaultFactory;
     IAaveV3Pool aavePool = IAaveV3Pool(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
-    address aToken = 0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8;
+    address aToken = 0x0B925eD163218f6662a35e0f0371Ac234f9E9371; // aWSTETH
     address owner;
     address alice;
     address bob;
@@ -39,31 +44,29 @@ contract AaveV3ATokenWrapperTest is Test {
         alice = makeAddr('alice');
         bob = makeAddr('bob');
 
-        collateralVaultFactory = new MockCollateralVaultFactory();
+        address evc = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
+        collateralVaultFactory = new MockCollateralVaultFactory(evc);
 
         // Deploy implementation
         address implementation = address(new AaveV3ATokenWrapper(
-            0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383,
+            evc,
             address(collateralVaultFactory),
             aavePool,
-            IRewardsController(0x8164Cc65827dcFe994AB23944CBC90e0aa80bFcb)
+            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
         ));
 
         // Encode initialization data
-        bytes memory initData = abi.encodeWithSelector(
-            AaveV3ATokenWrapper.initialize.selector,
-            aToken,
-            address(this),
-            "A-Stat-WETH",
-            "ASWETH"
+        bytes memory initData = abi.encodeCall(
+            AaveV3ATokenWrapper.initialize,
+            (aToken, address(this), "A-Stat-WSTETH", "ASWSTETH")
         );
 
         // Deploy proxy
         address proxy = address(new ERC1967Proxy(implementation, initData));
         tokenWrapper = AaveV3ATokenWrapper(proxy);
 
-        deal(WETH, alice, DEPOSIT_AMOUNT);
-        deal(WETH, bob, DEPOSIT_AMOUNT_INIT);
+        deal(WSTETH, alice, DEPOSIT_AMOUNT);
+        deal(WSTETH, bob, DEPOSIT_AMOUNT_INIT);
     }
 
     function depositToAave(address user, address asset, uint amount) internal {
@@ -80,7 +83,7 @@ contract AaveV3ATokenWrapperTest is Test {
     function aave_createDeposit() public {
         vm.startPrank(bob);
 
-        IERC20(WETH).approve(address(tokenWrapper), DEPOSIT_AMOUNT_INIT);
+        IERC20(WSTETH).approve(address(tokenWrapper), DEPOSIT_AMOUNT_INIT);
         uint expectedShares = tokenWrapper.previewDeposit(DEPOSIT_AMOUNT_INIT);
 
         tokenWrapper.deposit(DEPOSIT_AMOUNT_INIT, bob);
@@ -92,7 +95,7 @@ contract AaveV3ATokenWrapperTest is Test {
     function a_deposit(uint amount) public {
         vm.startPrank(alice);
         uint expectedShares = tokenWrapper.previewDeposit(amount);
-        IERC20(WETH).approve(address(tokenWrapper), amount);
+        IERC20(WSTETH).approve(address(tokenWrapper), amount);
 
         tokenWrapper.deposit(amount, alice);
 
@@ -102,14 +105,14 @@ contract AaveV3ATokenWrapperTest is Test {
 
 
     function a_withdraw(uint shares) internal {
-        uint balanceBefore = IERC20(WETH).balanceOf(alice);
+        uint balanceBefore = IERC20(WSTETH).balanceOf(alice);
         vm.startPrank(alice);
 
         uint amountExpected = tokenWrapper.previewRedeem(shares);
         tokenWrapper.redeem(shares, alice, alice);
 
         vm.stopPrank();
-        assertEq(IERC20(WETH).balanceOf(alice) - balanceBefore, amountExpected);
+        assertEq(IERC20(WSTETH).balanceOf(alice) - balanceBefore, amountExpected);
     }
 
     function test_deposit() public {
@@ -185,15 +188,15 @@ contract AaveV3ATokenWrapperTest is Test {
 
         address attacker = makeAddr("attacker");
 
-        deal(WETH, attacker, 100e18);
+        deal(WSTETH, attacker, 100e18);
 
         vm.startPrank(attacker);
 
-        IERC20(WETH).approve(address(tokenWrapper), 100e18);
+        IERC20(WSTETH).approve(address(tokenWrapper), 100e18);
         tokenWrapper.deposit(firstDeposit, attacker);
         vm.stopPrank();
 
-        depositToAave(attacker, WETH, 10e18);
+        depositToAave(attacker, WSTETH, 10e18);
 
         uint balance = IERC20(aToken).balanceOf(attacker);
         vm.prank(attacker);
@@ -244,10 +247,10 @@ contract AaveV3ATokenWrapperTest is Test {
         uint sharesToMint = 10e18;
         uint assetsRequired = tokenWrapper.previewMint(sharesToMint);
 
-        deal(WETH, alice, assetsRequired);
+        deal(WSTETH, alice, assetsRequired);
 
         vm.startPrank(alice);
-        IERC20(WETH).approve(address(tokenWrapper), assetsRequired);
+        IERC20(WSTETH).approve(address(tokenWrapper), assetsRequired);
         uint assetsUsed = tokenWrapper.mint(sharesToMint, alice);
         vm.stopPrank();
 
@@ -262,14 +265,14 @@ contract AaveV3ATokenWrapperTest is Test {
 
         uint assetsToWithdraw = 5e18;
         uint sharesRequired = tokenWrapper.previewWithdraw(assetsToWithdraw);
-        uint balanceBefore = IERC20(WETH).balanceOf(alice);
+        uint balanceBefore = IERC20(WSTETH).balanceOf(alice);
 
         vm.startPrank(alice);
         uint sharesUsed = tokenWrapper.withdraw(assetsToWithdraw, alice, alice);
         vm.stopPrank();
 
         assertEq(sharesUsed, sharesRequired);
-        assertEq(IERC20(WETH).balanceOf(alice) - balanceBefore, assetsToWithdraw);
+        assertEq(IERC20(WSTETH).balanceOf(alice) - balanceBefore, assetsToWithdraw);
     }
 
     // Test max functions
@@ -361,7 +364,7 @@ contract AaveV3ATokenWrapperTest is Test {
         collateralVaultFactory.setIsCollateral(alice, true);
 
         // Give alice some aTokens directly
-        depositToAave(alice, WETH, 10e18);
+        depositToAave(alice, WSTETH, 10e18);
         uint initialATokenBalance = IERC20(aToken).balanceOf(alice);
 
         // Rebalance to a smaller amount
@@ -515,7 +518,7 @@ contract AaveV3ATokenWrapperTest is Test {
     // Fuzzing test for rebalanceATokens with scaledBalance verification
     function test_fuzz_rebalanceATokens_scaledBalance(uint256 depositAmount, uint256 iterations) public {
         // Bound the input values
-        depositAmount = bound(depositAmount, 1e18, 100e18); // Between 1 and 100 WETH
+        depositAmount = bound(depositAmount, 1e18, 100e18); // Between 1 and 100 WSTETH
         iterations = bound(iterations, 1, 5); // Do 1-5 iterations of deposits/rebalances
 
         // Setup: Create initial deposit to avoid division by zero
@@ -525,10 +528,10 @@ contract AaveV3ATokenWrapperTest is Test {
         address vault = alice;
         collateralVaultFactory.setIsCollateral(vault, true);
 
-        // Give vault some WETH and deposit to wrapper
-        deal(WETH, vault, depositAmount * 2); // Give extra for later deposits
+        // Give vault some WSTETH and deposit to wrapper
+        deal(WSTETH, vault, depositAmount * 2); // Give extra for later deposits
         vm.startPrank(vault);
-        IERC20(WETH).approve(address(tokenWrapper), type(uint256).max);
+        IERC20(WSTETH).approve(address(tokenWrapper), type(uint256).max);
         tokenWrapper.deposit(depositAmount, vault);
 
         // Get initial wrapper balance
@@ -553,15 +556,15 @@ contract AaveV3ATokenWrapperTest is Test {
 
             // Get current balances
             uint256 currentWrapperBalance = tokenWrapper.balanceOf(vault);
-            uint256 currentWETHBalance = IERC20(WETH).balanceOf(vault);
+            uint256 currentWSTETHBalance = IERC20(WSTETH).balanceOf(vault);
 
             if (i % 2 == 0 && currentWrapperBalance > 1e17) {
                 // Withdraw some (but not too much)
                 uint256 withdrawAmount = bound(uint256(keccak256(abi.encode("withdraw", i))), 1e17, currentWrapperBalance / 2);
                 tokenWrapper.redeem(withdrawAmount, vault, vault);
-            } else if (currentWETHBalance >= 1e17) {
+            } else if (currentWSTETHBalance >= 1e17) {
                 // Deposit more
-                uint256 depositAmt = bound(uint256(keccak256(abi.encode("deposit", i))), 1e17, currentWETHBalance);
+                uint256 depositAmt = bound(uint256(keccak256(abi.encode("deposit", i))), 1e17, currentWSTETHBalance);
                 tokenWrapper.deposit(depositAmt, vault);
             }
 
@@ -594,9 +597,9 @@ contract AaveV3ATokenWrapperTest is Test {
         collateralVaultFactory.setIsCollateral(vault, true);
 
         // Deposit and get shares
-        deal(WETH, vault, depositAmount);
+        deal(WSTETH, vault, depositAmount);
         vm.startPrank(vault);
-        IERC20(WETH).approve(address(tokenWrapper), depositAmount);
+        IERC20(WSTETH).approve(address(tokenWrapper), depositAmount);
         tokenWrapper.deposit(depositAmount, vault);
 
         uint256 totalShares = tokenWrapper.balanceOf(vault);
@@ -633,9 +636,9 @@ contract AaveV3ATokenWrapperTest is Test {
         collateralVaultFactory.setIsCollateral(vault, true);
 
         // Initial deposit
-        deal(WETH, vault, depositAmount);
+        deal(WSTETH, vault, depositAmount);
         vm.startPrank(vault);
-        IERC20(WETH).approve(address(tokenWrapper), depositAmount);
+        IERC20(WSTETH).approve(address(tokenWrapper), depositAmount);
         tokenWrapper.deposit(depositAmount, vault);
 
         // Setup aToken approvals
@@ -645,9 +648,9 @@ contract AaveV3ATokenWrapperTest is Test {
 
         // Airdrop wrapper shares from bob
         address airdropper = bob;
-        deal(WETH, airdropper, airdropAmount * 2);
+        deal(WSTETH, airdropper, airdropAmount * 2);
         vm.startPrank(airdropper);
-        IERC20(WETH).approve(address(tokenWrapper), airdropAmount * 2);
+        IERC20(WSTETH).approve(address(tokenWrapper), airdropAmount * 2);
         tokenWrapper.deposit(airdropAmount, airdropper);
         uint256 airdropShares = tokenWrapper.balanceOf(airdropper);
         tokenWrapper.transfer(vault, airdropShares);
@@ -689,9 +692,9 @@ contract AaveV3ATokenWrapperTest is Test {
         collateralVaultFactory.setIsCollateral(vault, true);
 
         // Initial deposit
-        deal(WETH, vault, depositAmount);
+        deal(WSTETH, vault, depositAmount);
         vm.startPrank(vault);
-        IERC20(WETH).approve(address(tokenWrapper), depositAmount);
+        IERC20(WSTETH).approve(address(tokenWrapper), depositAmount);
         tokenWrapper.deposit(depositAmount, vault);
 
         IAToken aTokenContract = IAToken(aToken);
@@ -702,9 +705,9 @@ contract AaveV3ATokenWrapperTest is Test {
 
         // Bob airdrops aTokens directly to vault
         address airdropper = bob;
-        deal(WETH, airdropper, 20e18);
+        deal(WSTETH, airdropper, 20e18);
         vm.startPrank(airdropper);
-        IERC20(WETH).approve(address(tokenWrapper), 20e18);
+        IERC20(WSTETH).approve(address(tokenWrapper), 20e18);
         tokenWrapper.deposit(20e18, airdropper);
         tokenWrapper.redeem(tokenWrapper.balanceOf(airdropper), airdropper, airdropper);
 
@@ -712,10 +715,6 @@ contract AaveV3ATokenWrapperTest is Test {
         uint256 airdropATokenAmount = IERC20(aToken).balanceOf(airdropper);
         IERC20(aToken).transfer(vault, airdropATokenAmount);
         vm.stopPrank();
-
-        // Vault now has extra aTokens that don't match its wrapper shares
-        uint256 vaultATokensBefore = IERC20(aToken).balanceOf(vault);
-        uint256 vaultScaledBefore = aTokenContract.scaledBalanceOf(vault);
 
         // Vault still has same wrapper shares as before
         assertEq(tokenWrapper.balanceOf(vault), initialShares, "Wrapper shares should not change from aToken airdrop");
@@ -754,9 +753,9 @@ contract AaveV3ATokenWrapperTest is Test {
         collateralVaultFactory.setIsCollateral(vault, true);
 
         // Initial setup
-        deal(WETH, vault, 100e18);
+        deal(WSTETH, vault, 100e18);
         vm.startPrank(vault);
-        IERC20(WETH).approve(address(tokenWrapper), 100e18);
+        IERC20(WSTETH).approve(address(tokenWrapper), 100e18);
         tokenWrapper.deposit(50e18, vault);
         IERC20(aToken).approve(address(tokenWrapper), type(uint256).max);
         vm.stopPrank();
@@ -772,9 +771,9 @@ contract AaveV3ATokenWrapperTest is Test {
                 address dropper = makeAddr(string.concat("dropper", vm.toString(i)));
                 uint256 dropAmount = bound(uint256(keccak256(abi.encode(seed, i, "amount"))), 1e18, 5e18);
 
-                deal(WETH, dropper, dropAmount);
+                deal(WSTETH, dropper, dropAmount);
                 vm.startPrank(dropper);
-                IERC20(WETH).approve(address(tokenWrapper), dropAmount);
+                IERC20(WSTETH).approve(address(tokenWrapper), dropAmount);
                 tokenWrapper.deposit(dropAmount, dropper);
                 tokenWrapper.transfer(vault, tokenWrapper.balanceOf(dropper));
                 vm.stopPrank();
@@ -783,9 +782,9 @@ contract AaveV3ATokenWrapperTest is Test {
                 address dropper = makeAddr(string.concat("aDropper", vm.toString(i)));
                 uint256 dropAmount = bound(uint256(keccak256(abi.encode(seed, i, "aAmount"))), 1e18, 5e18);
 
-                deal(WETH, dropper, dropAmount);
+                deal(WSTETH, dropper, dropAmount);
                 vm.startPrank(dropper);
-                IERC20(WETH).approve(address(tokenWrapper), dropAmount);
+                IERC20(WSTETH).approve(address(tokenWrapper), dropAmount);
                 tokenWrapper.deposit(dropAmount, dropper);
                 tokenWrapper.redeem(tokenWrapper.balanceOf(dropper), dropper, dropper);
                 IERC20(aToken).transfer(vault, IERC20(aToken).balanceOf(dropper));

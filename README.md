@@ -1,66 +1,95 @@
-## Foundry
+# Aave V3 aToken Wrapper
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+ERC4626-compliant wrapper for Aave V3 aTokens, converting rebasing tokens to non-rebasing shares for use as collateral in lending protocols.
 
-Foundry consists of:
+## Overview
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+This wrapper allows collateral vaults to hold non-rebasing shares while the underlying aTokens continue to rebase. It includes special functions for collateral vaults to rebalance aToken positions for direct borrowing from Aave.
 
-## Documentation
+The contract inherits from Aave's StataTokenV2 and adds UUPS upgradeability along with custom collateral vault functions.
 
-https://book.getfoundry.sh/
+## Setup
 
-## Usage
+Install dependencies and set up environment:
 
-### Build
-
-```shell
-$ forge build
+```sh
+forge install
+```
+```sh
+cp .env.example .env
 ```
 
-### Test
+## Running Tests
 
-```shell
-$ forge test
+```sh
+FOUNDRY_PROFILE=mainnet forge test
 ```
 
-### Format
+## Deployment
 
-```shell
-$ forge fmt
+### Prerequisites
+
+1. Ensure `TwyneAddresses_output.json` exists with the collateral vault factory address
+2. Configure `.env` file with:
+   - `DEPLOYER_ADDRESS`: Address of the deployer
+   - `ADMIN_ETH_ADDRESS`: Multisig address that will own the contracts
+   - `ETHERSCAN_API_KEY`: For contract verification on Ethereum mainnet
+
+### Deploy to Mainnet
+
+Deploy the wrapper behind a UUPS proxy:
+
+```sh
+forge script script/DeployAaveV3ATokenWrapper.s.sol:DeployAaveV3ATokenWrapper \
+  --slow \
+  --broadcast \
+  --verify \
+  --verifier etherscan \
+  --etherscan-api-key <YOUR_ETHERSCAN_API_KEY>
 ```
 
-### Gas Snapshots
+### Deploy to Base
 
-```shell
-$ forge snapshot
+For Base deployment, update the verifier URL:
+
+```sh
+forge script script/DeployAaveV3ATokenWrapper.s.sol:DeployAaveV3ATokenWrapper \
+  --slow \
+  --broadcast \
+  --verify \
+  --verifier etherscan \
+  --etherscan-api-key <YOUR_ETHERSCAN_API_KEY>
 ```
 
-### Anvil
+## Upgrading the Contract
 
-```shell
-$ anvil
+To upgrade the UUPS proxy implementation:
+
+```sh
+forge script script/UpgradeAaveV3ATokenWrapper.s.sol:UpgradeAaveV3ATokenWrapper \
+  --sig "run(address)" <PROXY_ADDRESS> \
+  --slow \
+  --broadcast \
+  --verify \
+  --verifier etherscan \
+  --etherscan-api-key <YOUR_ETHERSCAN_API_KEY>
 ```
 
-### Deploy
+## Post-Deployment Verification
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+After deployment, verify everything is configured correctly:
+
+```sh
+forge script script/PostDeploymentCheck.s.sol:PostDeploymentCheck \
+  --sig "run(address)" <PROXY_ADDRESS> \
+  -vv
 ```
 
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+The script will verify:
+- Proxy deployment and initialization
+- Ownership configuration
+- Collateral vault factory integration
+- EVC integration
+- Aave protocol integration
+- ERC4626 compliance
+- Access control for collateral vault functions

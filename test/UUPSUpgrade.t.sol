@@ -6,6 +6,7 @@ import {AaveV3ATokenWrapper} from "../src/AaveV3ATokenWrapper.sol";
 import {IRewardsController, IPool as IAaveV3Pool} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {AToken} from "aave-v3/protocol/tokenization/AToken.sol";
 
 // Mock implementation for testing upgrades
 contract AaveV3ATokenWrapperV2 is AaveV3ATokenWrapper {
@@ -28,7 +29,12 @@ contract AaveV3ATokenWrapperV2 is AaveV3ATokenWrapper {
 }
 
 contract MockCollateralVaultFactory {
+    address public immutable EVC;
     mapping(address => bool) isCollateral;
+
+    constructor(address _evc) {
+        EVC = _evc;
+    }
 
     function setIsCollateral(address asset, bool status) external {
         isCollateral[asset] = status;
@@ -42,10 +48,9 @@ contract MockCollateralVaultFactory {
 contract UUPSUpgradeTest is Test {
     // Mainnet addresses
     address constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
-    address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address constant WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
     IAaveV3Pool constant aavePool = IAaveV3Pool(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
-    address constant aToken = 0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8;
-    IRewardsController constant rewardsController = IRewardsController(0x8164Cc65827dcFe994AB23944CBC90e0aa80bFcb);
+    address constant aToken = 0x0B925eD163218f6662a35e0f0371Ac234f9E9371; // aWSTETH
 
     AaveV3ATokenWrapper public proxy;
     address public implementation;
@@ -58,23 +63,20 @@ contract UUPSUpgradeTest is Test {
         owner = makeAddr('owner');
         alice = makeAddr('alice');
 
-        collateralVaultFactory = new MockCollateralVaultFactory();
+        collateralVaultFactory = new MockCollateralVaultFactory(EVC);
 
         // Deploy implementation
         implementation = address(new AaveV3ATokenWrapper(
             EVC,
             address(collateralVaultFactory),
             aavePool,
-            rewardsController
+            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
         ));
 
         // Encode initialization data
-        bytes memory initData = abi.encodeWithSelector(
-            AaveV3ATokenWrapper.initialize.selector,
-            aToken,
-            owner,
-            "UUPS Test Wrapper",
-            "UUPS-WRAP"
+        bytes memory initData = abi.encodeCall(
+            AaveV3ATokenWrapper.initialize,
+            (aToken, owner, "UUPS Test Wrapper", "UUPS-WRAP")
         );
 
         // Deploy proxy
@@ -97,7 +99,7 @@ contract UUPSUpgradeTest is Test {
             EVC,
             address(collateralVaultFactory),
             aavePool,
-            rewardsController
+            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
         ));
 
         // Try to upgrade as non-owner (should fail)
@@ -124,10 +126,10 @@ contract UUPSUpgradeTest is Test {
 
     function test_storageConsistencyAfterUpgrade() public {
         // First deposit some funds (need mainnet fork)
-        deal(WETH, alice, 10 ether);
+        deal(WSTETH, alice, 10 ether);
 
         vm.startPrank(alice);
-        IERC20(WETH).approve(address(proxy), 10 ether);
+        IERC20(WSTETH).approve(address(proxy), 10 ether);
         proxy.deposit(10 ether, alice);
         vm.stopPrank();
 
@@ -139,7 +141,7 @@ contract UUPSUpgradeTest is Test {
             EVC,
             address(collateralVaultFactory),
             aavePool,
-            rewardsController
+            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
         ));
 
         vm.prank(owner);
@@ -156,7 +158,7 @@ contract UUPSUpgradeTest is Test {
         vm.stopPrank();
 
         // Should have received back approximately 10 ether
-        assertGe(IERC20(WETH).balanceOf(alice), 9.99 ether);
+        assertGe(IERC20(WSTETH).balanceOf(alice), 9.99 ether);
     }
 
     function test_cannotReinitializeAfterUpgrade() public {
@@ -165,7 +167,7 @@ contract UUPSUpgradeTest is Test {
             EVC,
             address(collateralVaultFactory),
             aavePool,
-            rewardsController
+            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
         ));
 
         // Upgrade
@@ -194,7 +196,7 @@ contract UUPSUpgradeTest is Test {
             EVC,
             address(collateralVaultFactory),
             aavePool,
-            rewardsController
+            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
         ));
 
         // Random user cannot upgrade
