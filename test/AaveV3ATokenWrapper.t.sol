@@ -621,4 +621,192 @@ contract AaveV3ATokenWrapperTest is Test {
         
         vm.stopPrank();
     }
+
+    // Test that rebalanceATokens_CV correctly sets scaledBalance even with airdrops
+    function test_fuzz_rebalanceATokens_withAirdrops(uint256 depositAmount, uint256 airdropAmount, uint256 rebalanceAmount) public {
+        // Bound inputs
+        depositAmount = bound(depositAmount, 10e18, 100e18);
+        airdropAmount = bound(airdropAmount, 1e17, 10e18);
+        
+        aave_createDeposit();
+        
+        // Setup vault
+        address vault = alice;
+        collateralVaultFactory.setIsCollateral(vault, true);
+        
+        // Initial deposit
+        deal(WETH, vault, depositAmount);
+        vm.startPrank(vault);
+        IERC20(WETH).approve(address(tokenWrapper), depositAmount);
+        tokenWrapper.deposit(depositAmount, vault);
+        
+        // Setup aToken approvals
+        IAToken aTokenContract = IAToken(aToken);
+        IERC20(aToken).approve(address(tokenWrapper), type(uint256).max);
+        vm.stopPrank();
+        
+        // Airdrop wrapper shares from bob
+        address airdropper = bob;
+        deal(WETH, airdropper, airdropAmount * 2);
+        vm.startPrank(airdropper);
+        IERC20(WETH).approve(address(tokenWrapper), airdropAmount * 2);
+        tokenWrapper.deposit(airdropAmount, airdropper);
+        uint256 airdropShares = tokenWrapper.balanceOf(airdropper);
+        tokenWrapper.transfer(vault, airdropShares);
+        vm.stopPrank();
+        
+        // Now vault has more wrapper shares than expected
+        uint256 vaultTotalShares = tokenWrapper.balanceOf(vault);
+        
+        // Bound rebalance amount to be <= vault's total shares
+        rebalanceAmount = bound(rebalanceAmount, 1e16, vaultTotalShares);
+        
+        // Vault rebalances to arbitrary amount (not necessarily full balance)
+        vm.prank(vault);
+        tokenWrapper.rebalanceATokens_CV(rebalanceAmount);
+        
+        // Verify scaledBalance equals the rebalance amount (NOT the total wrapper balance)
+        uint256 scaledBalance = aTokenContract.scaledBalanceOf(vault);
+        assertEq(scaledBalance, rebalanceAmount, 
+            "Scaled balance should equal the rebalance amount, not total wrapper balance");
+        
+        // Verify this holds for different rebalance amounts
+        uint256 newRebalanceAmount = bound(uint256(keccak256(abi.encode(rebalanceAmount))), 1e16, vaultTotalShares);
+        vm.prank(vault);
+        tokenWrapper.rebalanceATokens_CV(newRebalanceAmount);
+        
+        scaledBalance = aTokenContract.scaledBalanceOf(vault);
+        assertEq(scaledBalance, newRebalanceAmount, 
+            "Scaled balance should equal new rebalance amount after second rebalance");
+    }
+
+    // Test with aToken airdrops
+    function test_rebalanceATokens_withATokenAirdrops() public {
+        uint256 depositAmount = 50e18;
+        
+        aave_createDeposit();
+        
+        // Setup vault
+        address vault = alice;
+        collateralVaultFactory.setIsCollateral(vault, true);
+        
+        // Initial deposit
+        deal(WETH, vault, depositAmount);
+        vm.startPrank(vault);
+        IERC20(WETH).approve(address(tokenWrapper), depositAmount);
+        tokenWrapper.deposit(depositAmount, vault);
+        
+        IAToken aTokenContract = IAToken(aToken);
+        IERC20(aToken).approve(address(tokenWrapper), type(uint256).max);
+        
+        uint256 initialShares = tokenWrapper.balanceOf(vault);
+        vm.stopPrank();
+        
+        // Bob airdrops aTokens directly to vault
+        address airdropper = bob;
+        deal(WETH, airdropper, 20e18);
+        vm.startPrank(airdropper);
+        IERC20(WETH).approve(address(tokenWrapper), 20e18);
+        tokenWrapper.deposit(20e18, airdropper);
+        tokenWrapper.redeem(tokenWrapper.balanceOf(airdropper), airdropper, airdropper);
+        
+        // Now bob has aTokens, airdrop them to vault
+        uint256 airdropATokenAmount = IERC20(aToken).balanceOf(airdropper);
+        IERC20(aToken).transfer(vault, airdropATokenAmount);
+        vm.stopPrank();
+        
+        // Vault now has extra aTokens that don't match its wrapper shares
+        uint256 vaultATokensBefore = IERC20(aToken).balanceOf(vault);
+        uint256 vaultScaledBefore = aTokenContract.scaledBalanceOf(vault);
+        
+        // Vault still has same wrapper shares as before
+        assertEq(tokenWrapper.balanceOf(vault), initialShares, "Wrapper shares should not change from aToken airdrop");
+        
+        // Rebalance to half of wrapper shares
+        uint256 targetShares = initialShares / 2;
+        vm.prank(vault);
+        tokenWrapper.rebalanceATokens_CV(targetShares);
+        
+        // After rebalance, scaledBalance should equal targetShares
+        uint256 scaledBalanceAfter = aTokenContract.scaledBalanceOf(vault);
+        assertEq(scaledBalanceAfter, targetShares, 
+            "Scaled balance should equal target shares after rebalance, regardless of airdrops");
+        
+        // Rebalance to full wrapper balance
+        vm.prank(vault);
+        tokenWrapper.rebalanceATokens_CV(initialShares);
+        
+        scaledBalanceAfter = aTokenContract.scaledBalanceOf(vault);
+        assertEq(scaledBalanceAfter, initialShares, 
+            "Scaled balance should equal full wrapper shares when rebalanced to full amount");
+        
+        // Rebalance to 0 (wrapper takes all aTokens)
+        vm.prank(vault);
+        tokenWrapper.rebalanceATokens_CV(0);
+        
+        scaledBalanceAfter = aTokenContract.scaledBalanceOf(vault);
+        assertEq(scaledBalanceAfter, 0, "Scaled balance should be 0 after rebalancing to 0");
+    }
+
+    // Comprehensive test with multiple airdrops and arbitrary rebalances
+    function test_fuzz_rebalanceATokens_complexScenario(uint256 seed) public {
+        aave_createDeposit();
+        
+        address vault = alice;
+        collateralVaultFactory.setIsCollateral(vault, true);
+        
+        // Initial setup
+        deal(WETH, vault, 100e18);
+        vm.startPrank(vault);
+        IERC20(WETH).approve(address(tokenWrapper), 100e18);
+        tokenWrapper.deposit(50e18, vault);
+        IERC20(aToken).approve(address(tokenWrapper), type(uint256).max);
+        vm.stopPrank();
+        
+        IAToken aTokenContract = IAToken(aToken);
+        
+        // Run 5 random operations
+        for (uint256 i = 0; i < 5; i++) {
+            uint256 op = uint256(keccak256(abi.encode(seed, i))) % 3;
+            
+            if (op == 0) {
+                // Random wrapper share airdrop
+                address dropper = makeAddr(string.concat("dropper", vm.toString(i)));
+                uint256 dropAmount = bound(uint256(keccak256(abi.encode(seed, i, "amount"))), 1e18, 5e18);
+                
+                deal(WETH, dropper, dropAmount);
+                vm.startPrank(dropper);
+                IERC20(WETH).approve(address(tokenWrapper), dropAmount);
+                tokenWrapper.deposit(dropAmount, dropper);
+                tokenWrapper.transfer(vault, tokenWrapper.balanceOf(dropper));
+                vm.stopPrank();
+            } else if (op == 1) {
+                // Random aToken airdrop
+                address dropper = makeAddr(string.concat("aDropper", vm.toString(i)));
+                uint256 dropAmount = bound(uint256(keccak256(abi.encode(seed, i, "aAmount"))), 1e18, 5e18);
+                
+                deal(WETH, dropper, dropAmount);
+                vm.startPrank(dropper);
+                IERC20(WETH).approve(address(tokenWrapper), dropAmount);
+                tokenWrapper.deposit(dropAmount, dropper);
+                tokenWrapper.redeem(tokenWrapper.balanceOf(dropper), dropper, dropper);
+                IERC20(aToken).transfer(vault, IERC20(aToken).balanceOf(dropper));
+                vm.stopPrank();
+            }
+            
+            // After each operation, rebalance to a random amount <= wrapper balance
+            uint256 vaultShares = tokenWrapper.balanceOf(vault);
+            uint256 targetRebalance = bound(uint256(keccak256(abi.encode(seed, i, "rebalance"))), 0, vaultShares);
+            
+            vm.prank(vault);
+            tokenWrapper.rebalanceATokens_CV(targetRebalance);
+            
+            // Verify the invariant
+            assertEq(
+                aTokenContract.scaledBalanceOf(vault),
+                targetRebalance,
+                string.concat("Iteration ", vm.toString(i), ": Scaled balance != rebalance target")
+            );
+        }
+    }
 }
