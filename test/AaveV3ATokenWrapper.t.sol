@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {IRewardsController, IAaveV3Pool, AaveV3ATokenWrapper} from "src/AaveV3ATokenWrapper.sol";
+import {IRewardsController, IAaveV3Pool, AaveV3ATokenWrapper, NotCollateralVault} from "src/AaveV3ATokenWrapper.sol";
 import {IERC20}  from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20}  from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -141,7 +141,7 @@ contract AaveV3ATokenWrapperTest is Test {
     function test_rebalanceATokens_CV() public {
         aave_createDeposit();
         vm.startPrank(alice);
-        vm.expectRevert(bytes("not collateral vault"));
+        vm.expectRevert(NotCollateralVault.selector);
 
         tokenWrapper.rebalanceATokens_CV(0);
 
@@ -162,7 +162,7 @@ contract AaveV3ATokenWrapperTest is Test {
         aave_createDeposit();
         a_deposit(10e18);
         vm.startPrank(alice);
-        vm.expectRevert(bytes("not collateral vault"));
+        vm.expectRevert(NotCollateralVault.selector);
 
         tokenWrapper.burnShares_CV(0);
 
@@ -450,10 +450,10 @@ contract AaveV3ATokenWrapperTest is Test {
         // Bob is not a collateral vault
         vm.startPrank(bob);
 
-        vm.expectRevert(bytes("not collateral vault"));
+        vm.expectRevert(NotCollateralVault.selector);
         tokenWrapper.rebalanceATokens_CV(1e18);
 
-        vm.expectRevert(bytes("not collateral vault"));
+        vm.expectRevert(NotCollateralVault.selector);
         tokenWrapper.burnShares_CV(1e18);
 
         vm.stopPrank();

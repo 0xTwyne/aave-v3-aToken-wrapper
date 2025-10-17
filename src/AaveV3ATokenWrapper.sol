@@ -14,10 +14,14 @@ import {IAToken} from "aave-v3/interfaces/IAToken.sol";
 interface ICollateralVaultFactory {
     function isCollateralVault(address) external view returns (bool);
 }
+
+error NotCollateralVault();
+
 /// @title AaveV3ATokenWrapper
 /// @notice ERC4626 wrapper for Aave V3 aTokens to convert rebasing tokens to non-rebasing shares
-/// @dev This wrapper allows collateral vaults to hold non-rebasing shares while the underlying aTokens rebase
-/// @dev Collateral vaults can pull/push aTokens for direct borrowing from Aave
+/// @dev This wrapper allows collateral vaults to hold non-rebasing shares while the underlying aTokens rebase.
+/// @dev Collateral vaults can pull/push aTokens for direct borrowing from Aave.
+/// @dev This contract is StataTokenV2 + UUPSUpgradeable + 2 custom fns at the end.
 contract AaveV3ATokenWrapper is
     ERC20PermitUpgradeable,
     ERC20AaveLMUpgradeable,
@@ -110,8 +114,10 @@ contract AaveV3ATokenWrapper is
         ERC20AaveLMUpgradeable._update(from, to, amount);
     }
 
+    ///////////// Custom Twyne functions /////////////
+
     modifier onlyCV {
-        require(collateralVaultFactory.isCollateralVault(msg.sender), "not collateral vault");
+        require(collateralVaultFactory.isCollateralVault(msg.sender), NotCollateralVault());
         _;
     }
 
@@ -137,8 +143,6 @@ contract AaveV3ATokenWrapper is
     ///      this wrapper's totalAssets.
     /// @param shares Amount of shares corresponding to aTokens taken away in external liquidation
     function burnShares_CV(uint shares) external onlyCV {
-        require(collateralVaultFactory.isCollateralVault(msg.sender), "not collateral vault");
-
         _burn(msg.sender, shares);
     }
 }
