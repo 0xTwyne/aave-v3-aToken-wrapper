@@ -4,9 +4,11 @@ pragma solidity ^0.8.28;
 
 import {EVCUtil} from "ethereum-vault-connector/utils/EVCUtil.sol";
 import {ERC20PermitUpgradeable, ERC20AaveLMUpgradeable, IRewardsController, ERC4626StataTokenUpgradeable, PausableUpgradeable, IStataTokenV2, ERC4626Upgradeable, IPool as IAaveV3Pool, Math, IERC20Permit, ERC20Upgradeable} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
-import {OwnableUpgradeable, ContextUpgradeable} from "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
-import {IERC20}  from "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {UUPSUpgradeable}  from "lib/aave-v3-origin/lib/solidity-utils/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable, ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {IERC20}  from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {UUPSUpgradeable}  from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {IAToken} from "aave-v3/interfaces/IAToken.sol";
 
 
 interface ICollateralVaultFactory {
@@ -27,7 +29,7 @@ contract AaveV3ATokenWrapper is
 {
     ICollateralVaultFactory public immutable collateralVaultFactory;
 
-    address internal constant permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    uint[50] internal __gap;
 
     constructor(
         address _evc,
@@ -40,10 +42,20 @@ contract AaveV3ATokenWrapper is
         ERC4626StataTokenUpgradeable(_aavePool)
     {
         collateralVaultFactory = ICollateralVaultFactory(_collateralVaultFactory);
+        _disableInitializers();
     }
 
 
-    function _authorizeUpgrade(address) internal onlyOwner virtual override {} 
+    /// @notice Authorizes an upgrade to a new implementation
+    /// @dev Only the owner can authorize upgrades (required by UUPSUpgradeable)
+    /// @param newImplementation Address of the new implementation contract
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    /// @notice Returns the current implementation version
+    /// @return Version string
+    function version() external pure virtual returns (uint) {
+        return 1;
+    }
 
     function _msgSender() internal view override(ContextUpgradeable, EVCUtil) returns (address) {
         return EVCUtil._msgSender();
@@ -61,6 +73,7 @@ contract AaveV3ATokenWrapper is
         __ERC4626StataToken_init(aToken);
         __Pausable_init();
         __Ownable_init(owner);
+        __UUPSUpgradeable_init();
     }
 
     function setPaused(bool paused) external onlyOwner {
@@ -97,24 +110,32 @@ contract AaveV3ATokenWrapper is
         ERC20AaveLMUpgradeable._update(from, to, amount);
     }
 
-    /// @notice Allows collateral vaults to adjust their aTokens corresponding to totalAssetsDepositedOrReserved
-    /// @dev This does NOT affect totalAsset() as aTokens are just moved, not withdrawn
-    /// @param shares Amount of shares equivalent to which collateral vault should have aToken balance
-    function rebalanceATokens(uint shares) external {
+    modifier onlyCV {
         require(collateralVaultFactory.isCollateralVault(msg.sender), "not collateral vault");
+        _;
+    }
 
-        IERC20 _aToken = IERC20(aToken());
-        uint expectedATokenAmount = previewRedeem(shares);
-        uint actualATokenAmount = _aToken.balanceOf(msg.sender);
+    /// @notice Allows collateral vaults to adjust their aTokens corresponding to totalAssetsDepositedOrReserved
+    /// @param shares Amount of shares equivalent to which collateral vault should have aToken balance
+    function rebalanceATokens_CV(uint shares) external onlyCV {
+        IAToken _aToken = IAToken(aToken());
 
-        if (expectedATokenAmount < actualATokenAmount) {
-            _aToken.transferFrom(msg.sender, address(this), actualATokenAmount - expectedATokenAmount);
+        uint actualScaledBalance = _aToken.scaledBalanceOf(msg.sender);
+
+        if (shares < actualScaledBalance) {
+            _aToken.transferFrom(msg.sender, address(this), _convertToAssets(actualScaledBalance - shares, Math.Rounding.Floor));
         } else {
-            _aToken.transfer(msg.sender, expectedATokenAmount - actualATokenAmount);
+            _aToken.transfer(msg.sender, _convertToAssets(shares - actualScaledBalance, Math.Rounding.Floor));
         }
     }
 
-    function burnShares(uint assets) external {
+    /// @notice Allows collateral vaults to burn their shares if they are externally liquidated
+    /// @dev When a collateral vault is externally liquidated, aTokens are forcefully removed
+    ///      from the aTokens transferred from this wrapper to the collateral vault. This wrapper
+    ///      needs to burn the corresponding shares since the removed aTokens are no longer a part of
+    ///      this wrapper's totalAssets.
+    /// @param assets Amount of aToken taken away in external liquidation
+    function burnShares_CV(uint assets) external onlyCV {
         require(collateralVaultFactory.isCollateralVault(msg.sender), "not collateral vault");
 
         uint shares = _convertToShares(assets, Math.Rounding.Ceil);
