@@ -3,7 +3,8 @@
 pragma solidity ^0.8.28;
 
 import {EVCUtil} from "ethereum-vault-connector/utils/EVCUtil.sol";
-import {ERC20PermitUpgradeable, ERC20AaveLMUpgradeable, IRewardsController, ERC4626StataTokenUpgradeable, PausableUpgradeable, IStataTokenV2, ERC4626Upgradeable, IPool as IAaveV3Pool, Math, IERC20Permit, ERC20Upgradeable} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
+import {ERC20PermitUpgradeable, ERC20AaveLMUpgradeable, IRewardsController, PausableUpgradeable, IStataTokenV2, ERC4626Upgradeable, IPool as IAaveV3Pool, Math, IERC20Permit, ERC20Upgradeable} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
+import {CustomERC4626StataTokenUpgradeable} from "./CustomERC4626StataTokenUpgradeable.sol";
 import {OwnableUpgradeable, ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IERC20}  from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {UUPSUpgradeable}  from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -27,7 +28,7 @@ error IncorrectEVC();
 contract AaveV3ATokenWrapper is
     ERC20PermitUpgradeable,
     ERC20AaveLMUpgradeable,
-    ERC4626StataTokenUpgradeable,
+    CustomERC4626StataTokenUpgradeable,
     PausableUpgradeable,
     OwnableUpgradeable,
     UUPSUpgradeable,
@@ -45,7 +46,7 @@ contract AaveV3ATokenWrapper is
     )
         EVCUtil(_evc)
         ERC20AaveLMUpgradeable(rewardsController)
-        ERC4626StataTokenUpgradeable(_aavePool)
+        CustomERC4626StataTokenUpgradeable(_aavePool)
     {
         collateralVaultFactory = ICollateralVaultFactory(_collateralVaultFactory);
         require(collateralVaultFactory.EVC() == _evc, IncorrectEVC());

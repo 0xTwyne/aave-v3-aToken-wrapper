@@ -279,9 +279,9 @@ contract AaveV3ATokenWrapperTest is Test {
     function test_maxDeposit() public {
         aave_createDeposit();
 
-        // Max deposit should be greater than 0 when not paused
+        // Max deposit should return unlimited amount
         uint256 maxDep = tokenWrapper.maxDeposit(alice);
-        assertGt(maxDep, 0);
+        assertEq(maxDep, type(uint256).max);
 
         // When paused, deposits should revert (not necessarily return 0)
         vm.prank(address(this));
@@ -297,9 +297,9 @@ contract AaveV3ATokenWrapperTest is Test {
     function test_maxMint() public {
         aave_createDeposit();
 
-        // Max mint should be greater than 0 when not paused
+        // Max mint should return unlimited amount
         uint256 maxM = tokenWrapper.maxMint(alice);
-        assertGt(maxM, 0);
+        assertEq(maxM, type(uint256).max);
 
         // When paused, minting should revert (not necessarily return 0)
         vm.prank(address(this));
@@ -317,9 +317,8 @@ contract AaveV3ATokenWrapperTest is Test {
         a_deposit(DEPOSIT_AMOUNT);
 
         uint maxAssets = tokenWrapper.maxWithdraw(alice);
-        uint expectedMax = tokenWrapper.previewRedeem(tokenWrapper.balanceOf(alice));
-
-        assertEq(maxAssets, expectedMax);
+        // Should return unlimited withdrawals
+        assertEq(maxAssets, type(uint256).max);
     }
 
     function test_maxRedeem() public {
@@ -327,7 +326,8 @@ contract AaveV3ATokenWrapperTest is Test {
         a_deposit(DEPOSIT_AMOUNT);
 
         uint maxShares = tokenWrapper.maxRedeem(alice);
-        assertEq(maxShares, tokenWrapper.balanceOf(alice));
+        // Should return unlimited redemptions
+        assertEq(maxShares, type(uint256).max);
     }
 
     // Test rebalanceATokens_CV edge cases
