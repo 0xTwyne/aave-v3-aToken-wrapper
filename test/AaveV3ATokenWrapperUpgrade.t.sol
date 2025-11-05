@@ -45,7 +45,7 @@ contract MockCollateralVaultFactory {
     }
 }
 
-contract UUPSUpgradeTest is Test {
+contract AaveV3ATokenWrapperUpgradeTest is Test {
     // Mainnet addresses
     address constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
     address constant WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;

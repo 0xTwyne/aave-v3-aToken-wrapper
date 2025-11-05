@@ -472,6 +472,7 @@ contract AaveV3ATokenWrapperTest is Test {
     function test_conversionFunctions() public {
         aave_createDeposit();
 
+        // Test round-trip conversion
         uint assets = 10e18;
         uint shares = tokenWrapper.convertToShares(assets);
         uint assetsBack = tokenWrapper.convertToAssets(shares);
@@ -479,6 +480,28 @@ contract AaveV3ATokenWrapperTest is Test {
         // Due to rounding, assetsBack might be slightly less than assets
         assertLe(assetsBack, assets);
         assertGe(assetsBack, assets - 10); // Allow small rounding difference
+        
+        // Test exact rate calculation
+        uint256 rate = aavePool.getReserveNormalizedIncome(tokenWrapper.asset());
+        uint256 RAY = 1e27;
+        
+        uint256 testAmount = 1e18;
+        uint256 expectedShares = (testAmount * RAY) / rate;
+        uint256 expectedAssets = (testAmount * rate) / RAY;
+        
+        assertEq(tokenWrapper.convertToShares(testAmount), expectedShares, "convertToShares exact calculation mismatch");
+        assertEq(tokenWrapper.convertToAssets(testAmount), expectedAssets, "convertToAssets exact calculation mismatch");
+        
+        // Test conversion logic bounds
+        uint256 actualShares = tokenWrapper.convertToShares(testAmount);
+        uint256 actualAssets = tokenWrapper.convertToAssets(testAmount);
+        
+        // convertToShares(assets) should be > 0 and < assets (due to accumulated interest rate > RAY)
+        assertGt(actualShares, 0, "convertToShares should be > 0");
+        assertLt(actualShares, testAmount, "convertToShares should be < assets due to rate > RAY");
+        
+        // convertToAssets(shares) should be > shares (due to accumulated interest)
+        assertGt(actualAssets, testAmount, "convertToAssets should be > shares due to rate > RAY");
     }
 
     // Test totalAssets tracking
