@@ -7,6 +7,7 @@ import {IRewardsController, IPool as IAaveV3Pool} from "aave-v3/extensions/stata
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AToken} from "aave-v3/protocol/tokenization/AToken.sol";
+import {MockCollateralVaultFactory} from "./AaveV3ATokenWrapper.t.sol";
 
 // Mock implementation for testing upgrades
 contract AaveV3ATokenWrapperV2 is AaveV3ATokenWrapper {
@@ -28,22 +29,6 @@ contract AaveV3ATokenWrapperV2 is AaveV3ATokenWrapper {
     }
 }
 
-contract MockCollateralVaultFactory {
-    address public immutable EVC;
-    mapping(address => bool) isCollateral;
-
-    constructor(address _evc) {
-        EVC = _evc;
-    }
-
-    function setIsCollateral(address asset, bool status) external {
-        isCollateral[asset] = status;
-    }
-
-    function isCollateralVault(address asset) external view returns (bool) {
-        return isCollateral[asset];
-    }
-}
 
 contract AaveV3ATokenWrapperUpgradeTest is Test {
     // Mainnet addresses

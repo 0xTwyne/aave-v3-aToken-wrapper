@@ -134,7 +134,7 @@ contract AaveV3ATokenWrapper is
     /// @notice Allows collateral vaults to adjust their aTokens corresponding to totalAssetsDepositedOrReserved
     /// @dev It makes the aToken.scaledBalance(msg.sender) same as `shares`
     /// @param shares Amount of shares equivalent to which collateral vault should have aToken balance
-    function rebalanceATokens_CV(uint shares) external onlyCV {
+    function rebalanceATokens_CV(uint shares) external onlyCV whenNotPaused {
         IAToken _aToken = IAToken(aToken());
 
         uint actualScaledBalance = _aToken.scaledBalanceOf(msg.sender);
@@ -151,8 +151,9 @@ contract AaveV3ATokenWrapper is
     ///      from the aTokens transferred from this wrapper to the collateral vault. This wrapper
     ///      needs to burn the corresponding shares since the removed aTokens are no longer a part of
     ///      this wrapper's totalAssets.
+    /// @dev Can be paused since _update() can be paused
     /// @param shares Amount of shares corresponding to aTokens taken away in external liquidation
-    function burnShares_CV(uint shares) external onlyCV whenNotPaused {
+    function burnShares_CV(uint shares) external onlyCV {
         _burn(msg.sender, shares);
     }
 }

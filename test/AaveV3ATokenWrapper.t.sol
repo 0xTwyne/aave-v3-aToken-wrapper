@@ -16,18 +16,14 @@ import {AggregatorInterface} from 'aave-v3-origin/src/contracts/dependencies/cha
 
 contract MockCollateralVaultFactory {
     address public immutable EVC;
-    mapping(address => bool) isCollateral;
+    mapping(address => bool) public isCollateralVault;
 
     constructor(address _evc) {
         EVC = _evc;
     }
 
-    function setIsCollateral(address asset, bool status) external {
-        isCollateral[asset] = status;
-    }
-
-    function isCollateralVault(address asset) external view returns (bool) {
-        return isCollateral[asset];
+    function setIsCollateralVault(address asset, bool status) external {
+        isCollateralVault[asset] = status;
     }
 }
 
@@ -186,7 +182,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         tokenWrapper.rebalanceATokens_CV(0);
 
         uint totalAssetsBefore = tokenWrapper.totalAssets();
-        collateralVaultFactory.setIsCollateral(alice, true);
+        collateralVaultFactory.setIsCollateralVault(alice, true);
         uint amountExpected = tokenWrapper.previewRedeem(1e18);
 
         tokenWrapper.rebalanceATokens_CV(1e18);
@@ -208,7 +204,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
 
         uint totalSupplyBefore = tokenWrapper.totalSupply();
         uint aliceSharesBefore = tokenWrapper.balanceOf(alice);
-        collateralVaultFactory.setIsCollateral(alice, true);
+        collateralVaultFactory.setIsCollateralVault(alice, true);
 
         // Now burnShares_CV takes shares directly, not assets
         uint sharesToBurn = 1e18;
@@ -370,7 +366,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
     // Test rebalanceATokens_CV edge cases
     function test_rebalanceATokens_CV_multipleRebalances() public {
         aave_createDeposit();
-        collateralVaultFactory.setIsCollateral(alice, true);
+        collateralVaultFactory.setIsCollateralVault(alice, true);
 
         vm.startPrank(alice);
         IERC20(aToken).approve(address(tokenWrapper), type(uint256).max);
@@ -398,7 +394,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
 
     function test_rebalanceATokens_CV_withExcessATokens() public {
         aave_createDeposit();
-        collateralVaultFactory.setIsCollateral(alice, true);
+        collateralVaultFactory.setIsCollateralVault(alice, true);
 
         // Give alice some aTokens directly
         depositToAave(alice, WSTETH, 10e18);
@@ -425,7 +421,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         aave_createDeposit();
         a_deposit(20e18);
 
-        collateralVaultFactory.setIsCollateral(alice, true);
+        collateralVaultFactory.setIsCollateralVault(alice, true);
 
         uint initialBalance = tokenWrapper.balanceOf(alice);
         // Now burnShares_CV takes shares directly
@@ -441,7 +437,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         aave_createDeposit();
         a_deposit(10e18);
 
-        collateralVaultFactory.setIsCollateral(alice, true);
+        collateralVaultFactory.setIsCollateralVault(alice, true);
 
         // Get all shares to burn
         uint allShares = tokenWrapper.balanceOf(alice);
@@ -458,7 +454,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         aave_createDeposit();
         a_deposit(20e18);
 
-        collateralVaultFactory.setIsCollateral(alice, true);
+        collateralVaultFactory.setIsCollateralVault(alice, true);
 
         vm.startPrank(alice);
 
@@ -499,7 +495,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         vm.stopPrank();
 
         // After setting bob as collateral vault, functions should work
-        collateralVaultFactory.setIsCollateral(bob, true);
+        collateralVaultFactory.setIsCollateralVault(bob, true);
 
         vm.prank(bob);
         tokenWrapper.rebalanceATokens_CV(0); // Should not revert
@@ -586,7 +582,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
 
         // Make alice a collateral vault
         address vault = alice;
-        collateralVaultFactory.setIsCollateral(vault, true);
+        collateralVaultFactory.setIsCollateralVault(vault, true);
 
         // Give vault some WSTETH and deposit to wrapper
         deal(WSTETH, vault, depositAmount * 2); // Give extra for later deposits
@@ -654,7 +650,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         aave_createDeposit();
 
         address vault = alice;
-        collateralVaultFactory.setIsCollateral(vault, true);
+        collateralVaultFactory.setIsCollateralVault(vault, true);
 
         // Deposit and get shares
         deal(WSTETH, vault, depositAmount);
@@ -693,7 +689,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
 
         // Setup vault
         address vault = alice;
-        collateralVaultFactory.setIsCollateral(vault, true);
+        collateralVaultFactory.setIsCollateralVault(vault, true);
 
         // Initial deposit
         deal(WSTETH, vault, depositAmount);
@@ -749,7 +745,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
 
         // Setup vault
         address vault = alice;
-        collateralVaultFactory.setIsCollateral(vault, true);
+        collateralVaultFactory.setIsCollateralVault(vault, true);
 
         // Initial deposit
         deal(WSTETH, vault, depositAmount);
@@ -810,7 +806,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         aave_createDeposit();
 
         address vault = alice;
-        collateralVaultFactory.setIsCollateral(vault, true);
+        collateralVaultFactory.setIsCollateralVault(vault, true);
 
         // Initial setup
         deal(WSTETH, vault, 100e18);
@@ -1049,7 +1045,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
 
     function test_burnShares_CV_pauseProtection() public {
         address vault = makeAddr("vault");
-        collateralVaultFactory.setIsCollateral(vault, true);
+        collateralVaultFactory.setIsCollateralVault(vault, true);
 
         vm.startPrank(vault);
 
@@ -1067,5 +1063,27 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         vm.prank(vault);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
         tokenWrapper.burnShares_CV(sharesToBurn);
+    }
+
+    function test_rebalanceATokens_CV_pauseProtection() public {
+        address vault = makeAddr("vault");
+        collateralVaultFactory.setIsCollateralVault(vault, true);
+
+        vm.startPrank(vault);
+
+        uint256 amount = 1 ether;
+        deal(WSTETH, vault, amount);
+        IERC20(WSTETH).approve(address(tokenWrapper), amount);
+
+        tokenWrapper.deposit(amount, vault);
+        uint256 sharesToRebalance = tokenWrapper.balanceOf(vault);
+
+        vm.stopPrank();
+
+        tokenWrapper.setPaused(true);
+
+        vm.prank(vault);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        tokenWrapper.rebalanceATokens_CV(sharesToRebalance);
     }
 }
