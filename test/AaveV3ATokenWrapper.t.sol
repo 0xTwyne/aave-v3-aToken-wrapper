@@ -8,6 +8,10 @@ import {SafeERC20}  from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.so
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IAToken} from "aave-v3/interfaces/IAToken.sol";
 import {AToken} from "aave-v3/protocol/tokenization/AToken.sol";
+import {TestnetProcedures, TestnetERC20} from 'aave-v3-origin/tests/utils/TestnetProcedures.sol';
+import {PullRewardsTransferStrategy, ITransferStrategyBase} from 'aave-v3-origin/src/contracts/rewards/transfer-strategies/PullRewardsTransferStrategy.sol';
+import {RewardsDataTypes} from 'aave-v3-origin/src/contracts/rewards/libraries/RewardsDataTypes.sol';
+import {AggregatorInterface} from 'aave-v3-origin/src/contracts/dependencies/chainlink/AggregatorInterface.sol';
 
 contract MockCollateralVaultFactory {
     address public immutable EVC;
@@ -26,7 +30,7 @@ contract MockCollateralVaultFactory {
     }
 }
 
-contract AaveV3ATokenWrapperTest is Test {
+contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
     AaveV3ATokenWrapper tokenWrapper;
 
     address WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
@@ -34,15 +38,35 @@ contract AaveV3ATokenWrapperTest is Test {
     IAaveV3Pool aavePool = IAaveV3Pool(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
     address aToken = 0x0B925eD163218f6662a35e0f0371Ac234f9E9371; // aWSTETH
     address owner;
-    address alice;
-    address bob;
     uint DEPOSIT_AMOUNT_INIT = 100 ether;
     uint DEPOSIT_AMOUNT = 20 ether;
 
+    // Reward testing variables
+    uint256 internal userPrivateKey;
+    address internal user;
+    address internal rewardToken;
+    address internal emissionAdmin;
+    PullRewardsTransferStrategy strategy;
+
+    struct TestEnv {
+        uint256 depositAmount;
+        uint32 emissionEnd;
+        uint88 emissionPerSecond;
+        uint32 emissionDuration;
+    }
+
     function setUp() public {
+        // Initialize Aave testnet environment
+        initTestEnvironment(false);
+
         owner = makeAddr('owner');
         alice = makeAddr('alice');
         bob = makeAddr('bob');
+
+        // Setup reward testing variables
+        emissionAdmin = vm.addr(1024);
+        userPrivateKey = 0xA11CE;
+        user = address(vm.addr(userPrivateKey));
 
         address evc = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
         collateralVaultFactory = new MockCollateralVaultFactory(evc);
@@ -52,7 +76,7 @@ contract AaveV3ATokenWrapperTest is Test {
             evc,
             address(collateralVaultFactory),
             aavePool,
-            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
+            contracts.rewardsControllerProxy // Use the one from TestnetProcedures
         ));
 
         // Encode initialization data
@@ -65,16 +89,28 @@ contract AaveV3ATokenWrapperTest is Test {
         address proxy = address(new ERC1967Proxy(implementation, initData));
         tokenWrapper = AaveV3ATokenWrapper(proxy);
 
+        // Setup reward token and strategy
+        rewardToken = address(new TestnetERC20('LM Reward ERC20', 'RWD', 18, poolAdmin));
+        strategy = new PullRewardsTransferStrategy(
+            report.rewardsControllerProxy,
+            emissionAdmin,
+            emissionAdmin
+        );
+
+        vm.prank(poolAdmin);
+        contracts.emissionManager.setEmissionAdmin(rewardToken, emissionAdmin);
+
         deal(WSTETH, alice, DEPOSIT_AMOUNT);
         deal(WSTETH, bob, DEPOSIT_AMOUNT_INIT);
+        deal(WSTETH, user, DEPOSIT_AMOUNT);
     }
 
-    function depositToAave(address user, address asset, uint amount) internal {
-        vm.startPrank(user);
+    function depositToAave(address userAddr, address asset, uint amount) internal {
+        vm.startPrank(userAddr);
 
         IERC20(asset).approve(address(aavePool), amount);
 
-        aavePool.supply(asset, amount, user, 0);
+        aavePool.supply(asset, amount, userAddr, 0);
 
         vm.stopPrank();
     }
@@ -832,7 +868,7 @@ contract AaveV3ATokenWrapperTest is Test {
 
     // Test reward claiming functionality
 
-    function test_claimReward() public {
+    function test_claimReward_accessControl() public {
         // Try to claim the aToken itself - should revert
         vm.expectRevert(InvalidRewardToken.selector);
         vm.prank(address(this));
@@ -843,61 +879,149 @@ contract AaveV3ATokenWrapperTest is Test {
         vm.prank(address(this));
         tokenWrapper.claimReward(alice, WSTETH);
 
-        // Use DAI as a mock reward token (it exists on mainnet)
-        address daiToken = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-        uint256 rewardAmount = 100e18;
-        deal(daiToken, address(tokenWrapper), rewardAmount);
-
         // Non-owner should not be able to claim rewards
+        address mockRewardToken = makeAddr("mockRewardToken");
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", alice));
-        tokenWrapper.claimReward(alice, daiToken);
-
-        uint256 aliceBalanceBefore = IERC20(daiToken).balanceOf(alice);
-
-        // Only owner can call claimReward
-        vm.prank(address(this)); // test contract is owner
-        tokenWrapper.claimReward(alice, daiToken);
-
-        // Check that rewards were transferred to receiver
-        assertEq(
-            IERC20(daiToken).balanceOf(alice),
-            aliceBalanceBefore + rewardAmount,
-            "Reward should be transferred to receiver"
-        );
-
-        assertEq(
-            IERC20(daiToken).balanceOf(address(tokenWrapper)),
-            0,
-            "Wrapper should have no rewards left"
-        );
+        tokenWrapper.claimReward(alice, mockRewardToken);
     }
 
-    function test_multipleRewardTokens() public {
-        // Test claiming multiple different reward tokens
-        address daiToken = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-        address usdtToken = 0xdAC17F958D2ee523a2206206994597C13D831ec7; // USDT
-        uint256 amount1 = 50e18;
-        uint256 amount2 = 75e6; // USDT has 6 decimals
+    function test_claimReward_multipleRewardTokens() public {
+        // Test claiming multiple different reward tokens through the Aave rewards system
+        address rewardToken1 = makeAddr("rewardToken1");
+        address rewardToken2 = makeAddr("rewardToken2");
 
-        // Give wrapper both reward tokens
-        deal(daiToken, address(tokenWrapper), amount1);
-        deal(usdtToken, address(tokenWrapper), amount2);
-
-        uint256 alice1Before = IERC20(daiToken).balanceOf(alice);
-        uint256 alice2Before = IERC20(usdtToken).balanceOf(alice);
-
-        // Claim both rewards (only owner can claim)
+        // Claim first reward token (only owner can claim)
         vm.prank(address(this));
-        tokenWrapper.claimReward(alice, daiToken);
+        uint256 claimed1 = tokenWrapper.claimReward(alice, rewardToken1);
+
+        // Claim second reward token
         vm.prank(address(this));
-        tokenWrapper.claimReward(alice, usdtToken);
+        uint256 claimed2 = tokenWrapper.claimReward(bob, rewardToken2);
 
-        // Verify both were transferred
-        assertEq(IERC20(daiToken).balanceOf(alice), alice1Before + amount1, "DAI should be transferred");
-        assertEq(IERC20(usdtToken).balanceOf(alice), alice2Before + amount2, "USDT should be transferred");
+        // Both should return 0 without emission setup, but function should not revert
+        assertEq(claimed1, 0, "Should claim 0 for first reward token");
+        assertEq(claimed2, 0, "Should claim 0 for second reward token");
+    }
 
-        assertEq(IERC20(daiToken).balanceOf(address(tokenWrapper)), 0, "Wrapper should have no DAI left");
-        assertEq(IERC20(usdtToken).balanceOf(address(tokenWrapper)), 0, "Wrapper should have no USDT left");
+    // Helper functions for reward testing
+
+    function _setupTestEnvironment(
+        uint256 depositAmount,
+        uint32 emissionEnd,
+        uint88 emissionPerSecond,
+        uint32 waitDuration
+    ) internal returns (TestEnv memory) {
+        TestEnv memory env;
+        env.depositAmount = bound(depositAmount, 1 ether, type(uint96).max);
+        env.emissionEnd = uint32(bound(emissionEnd, vm.getBlockTimestamp(), 365 days * 100));
+        uint32 endTimestamp = uint32(bound(waitDuration, vm.getBlockTimestamp(), 365 days * 100));
+        env.emissionDuration = env.emissionEnd > endTimestamp
+            ? endTimestamp - uint32(vm.getBlockTimestamp())
+            : env.emissionEnd - uint32(vm.getBlockTimestamp());
+        env.emissionPerSecond = uint88(
+            bound(
+                emissionPerSecond,
+                0,
+                env.emissionDuration > 0 ? type(uint88).max / env.emissionDuration : type(uint88).max
+            )
+        );
+        _setupEmission(env.emissionEnd, env.emissionPerSecond);
+        _fundWrapper(env.depositAmount, user);
+
+        vm.warp(endTimestamp);
+
+        return env;
+    }
+
+    function _setupEmission(uint32 emissionEnd, uint88 emissionPerSecond) internal {
+        RewardsDataTypes.RewardsConfigInput[] memory config = new RewardsDataTypes.RewardsConfigInput[](1);
+        config[0] = RewardsDataTypes.RewardsConfigInput(
+            emissionPerSecond,
+            0, // totalSupply is overwritten internally
+            emissionEnd,
+            tokenWrapper.aToken(), // Use our wrapper's aToken
+            rewardToken,
+            ITransferStrategyBase(strategy),
+            AggregatorInterface(address(2))
+        );
+
+        // configure asset
+        vm.prank(emissionAdmin);
+        contracts.emissionManager.configureAssets(config);
+
+        // fund admin & approve transfers to allow claiming
+        uint256 fundsToEmit = (emissionEnd - vm.getBlockTimestamp()) * emissionPerSecond;
+        deal(rewardToken, emissionAdmin, fundsToEmit, true);
+        vm.prank(emissionAdmin);
+        IERC20(rewardToken).approve(address(strategy), fundsToEmit);
+    }
+
+    /**
+     * @dev funds the given user with the wrapper tokens by depositing underlying.
+     * This creates aToken balance for the wrapper and gives user wrapper shares.
+     */
+    function _fundWrapper(uint256 amount, address receiver) internal {
+        // Give user underlying tokens
+        deal(WSTETH, receiver, amount);
+
+        // User deposits to wrapper (this creates aToken balance)
+        vm.prank(receiver);
+        IERC20(WSTETH).approve(address(tokenWrapper), amount);
+        vm.prank(receiver);
+        tokenWrapper.deposit(amount, receiver);
+    }
+
+    function _getRewardTokens() internal view returns (address[] memory) {
+        address[] memory rewardTokens = new address[](1);
+        rewardTokens[0] = rewardToken;
+        return rewardTokens;
+    }
+
+    // Simple test without fuzzing to avoid supply cap issues
+    function test_claimReward_withActualAaveRewards() public {
+        // Use fixed reasonable values to avoid supply cap issues
+        uint256 depositAmount = 1 ether;
+        uint32 emissionEnd = uint32(vm.getBlockTimestamp() + 1 days);
+        uint88 emissionPerSecond = 1 ether;
+        uint32 waitDuration = uint32(vm.getBlockTimestamp() + 1 hours);
+
+        _setupTestEnvironment(
+            depositAmount,
+            emissionEnd,
+            emissionPerSecond,
+            waitDuration
+        );
+
+        // Check that wrapper has aToken balance (from user deposits)
+        uint256 wrapperATokenBalance = IERC20(tokenWrapper.aToken()).balanceOf(address(tokenWrapper));
+        assertTrue(wrapperATokenBalance > 0, "Wrapper should have aToken balance from deposits");
+
+        // Check claimable rewards before claiming
+        address[] memory assets = new address[](1);
+        assets[0] = tokenWrapper.aToken();
+        uint256 claimableBefore = IRewardsController(contracts.rewardsControllerProxy)
+            .getUserRewards(assets, address(tokenWrapper), rewardToken);
+
+        // Should have some rewards after time passed
+        assertTrue(claimableBefore > 0, "Should have some claimable rewards after time passed");
+
+        // Claim rewards to alice
+        uint256 aliceBalanceBefore = IERC20(rewardToken).balanceOf(alice);
+        vm.prank(address(this)); // owner claims
+        uint256 claimed = tokenWrapper.claimReward(alice, rewardToken);
+
+        // Verify rewards were claimed and transferred to alice
+        assertEq(claimed, claimableBefore, "Should claim all available rewards");
+        assertEq(
+            IERC20(rewardToken).balanceOf(alice),
+            aliceBalanceBefore + claimed,
+            "Alice should receive the claimed rewards"
+        );
+
+        // Verify subsequent claim returns 0 (rewards were already claimed)
+        vm.prank(address(this));
+        uint256 claimedAgain = tokenWrapper.claimReward(bob, rewardToken);
+        assertEq(claimedAgain, 0, "Should claim 0 rewards after already claiming");
     }
 }

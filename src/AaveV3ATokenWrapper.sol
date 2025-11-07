@@ -114,10 +114,8 @@ contract AaveV3ATokenWrapper is
      * @return The amount of rewards claimed
      **/
     function claimReward(address to, address reward) external onlyOwner returns (uint) {
-        address _aToken = aToken();
-        require(reward != _aToken && reward != asset(), InvalidRewardToken());
         address[] memory assets = new address[](1);
-        assets[0] = _aToken;
+        assets[0] = aToken();
 
         return INCENTIVES_CONTROLLER.claimRewards(assets, type(uint).max, to, reward);
     }
