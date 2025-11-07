@@ -13,9 +13,8 @@ contract AaveV3ATokenWrapperV2 is AaveV3ATokenWrapper {
     constructor(
         address _evc,
         address _collateralVaultFactory,
-        IAaveV3Pool _aavePool,
-        IRewardsController rewardsController
-    ) AaveV3ATokenWrapper(_evc, _collateralVaultFactory, _aavePool, rewardsController) {}
+        IAaveV3Pool _aavePool
+    ) AaveV3ATokenWrapper(_evc, _collateralVaultFactory, _aavePool) {}
 
     // Override version to demonstrate upgrade
     function version() external pure override returns (uint) {
@@ -69,8 +68,7 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
         implementation = address(new AaveV3ATokenWrapper(
             EVC,
             address(collateralVaultFactory),
-            aavePool,
-            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
+            aavePool
         ));
 
         // Encode initialization data
@@ -98,8 +96,7 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
         address implementationV2 = address(new AaveV3ATokenWrapperV2(
             EVC,
             address(collateralVaultFactory),
-            aavePool,
-            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
+            aavePool
         ));
 
         // Try to upgrade as non-owner (should fail)
@@ -140,8 +137,7 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
         address implementationV2 = address(new AaveV3ATokenWrapperV2(
             EVC,
             address(collateralVaultFactory),
-            aavePool,
-            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
+            aavePool
         ));
 
         vm.prank(owner);
@@ -166,8 +162,7 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
         address implementationV2 = address(new AaveV3ATokenWrapperV2(
             EVC,
             address(collateralVaultFactory),
-            aavePool,
-            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
+            aavePool
         ));
 
         // Upgrade
@@ -195,8 +190,7 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
         address implementationV2 = address(new AaveV3ATokenWrapperV2(
             EVC,
             address(collateralVaultFactory),
-            aavePool,
-            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
+            aavePool
         ));
 
         // Random user cannot upgrade

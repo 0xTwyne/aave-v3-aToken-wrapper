@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {IRewardsController, IAaveV3Pool, AaveV3ATokenWrapper, NotCollateralVault} from "src/AaveV3ATokenWrapper.sol";
+import {IAaveV3Pool, AaveV3ATokenWrapper, NotCollateralVault, InvalidRewardToken} from "src/AaveV3ATokenWrapper.sol";
 import {IERC20}  from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20}  from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -51,8 +51,7 @@ contract AaveV3ATokenWrapperTest is Test {
         address implementation = address(new AaveV3ATokenWrapper(
             evc,
             address(collateralVaultFactory),
-            aavePool,
-            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
+            aavePool
         ));
 
         // Encode initialization data
@@ -480,26 +479,26 @@ contract AaveV3ATokenWrapperTest is Test {
         // Due to rounding, assetsBack might be slightly less than assets
         assertLe(assetsBack, assets);
         assertGe(assetsBack, assets - 10); // Allow small rounding difference
-        
+
         // Test exact rate calculation
         uint256 rate = aavePool.getReserveNormalizedIncome(tokenWrapper.asset());
         uint256 RAY = 1e27;
-        
+
         uint256 testAmount = 1e18;
         uint256 expectedShares = (testAmount * RAY) / rate;
         uint256 expectedAssets = (testAmount * rate) / RAY;
-        
+
         assertEq(tokenWrapper.convertToShares(testAmount), expectedShares, "convertToShares exact calculation mismatch");
         assertEq(tokenWrapper.convertToAssets(testAmount), expectedAssets, "convertToAssets exact calculation mismatch");
-        
+
         // Test conversion logic bounds
         uint256 actualShares = tokenWrapper.convertToShares(testAmount);
         uint256 actualAssets = tokenWrapper.convertToAssets(testAmount);
-        
+
         // convertToShares(assets) should be > 0 and < assets (due to accumulated interest rate > RAY)
         assertGt(actualShares, 0, "convertToShares should be > 0");
         assertLt(actualShares, testAmount, "convertToShares should be < assets due to rate > RAY");
-        
+
         // convertToAssets(shares) should be > shares (due to accumulated interest)
         assertGt(actualAssets, testAmount, "convertToAssets should be > shares due to rate > RAY");
     }
@@ -828,5 +827,76 @@ contract AaveV3ATokenWrapperTest is Test {
                 string.concat("Iteration ", vm.toString(i), ": Scaled balance != rebalance target")
             );
         }
+    }
+
+    // Test reward claiming functionality
+
+    function test_claimReward() public {
+        // Try to claim the aToken itself - should revert
+        vm.expectRevert(InvalidRewardToken.selector);
+        vm.prank(address(this));
+        tokenWrapper.claimReward(alice, aToken);
+
+        // Try to claim the underlying asset (WSTETH) - should revert
+        vm.expectRevert(InvalidRewardToken.selector);
+        vm.prank(address(this));
+        tokenWrapper.claimReward(alice, WSTETH);
+
+        // Use DAI as a mock reward token (it exists on mainnet)
+        address daiToken = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+        uint256 rewardAmount = 100e18;
+        deal(daiToken, address(tokenWrapper), rewardAmount);
+
+        // Non-owner should not be able to claim rewards
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", alice));
+        tokenWrapper.claimReward(alice, daiToken);
+
+        uint256 aliceBalanceBefore = IERC20(daiToken).balanceOf(alice);
+
+        // Only owner can call claimReward
+        vm.prank(address(this)); // test contract is owner
+        tokenWrapper.claimReward(alice, daiToken);
+
+        // Check that rewards were transferred to receiver
+        assertEq(
+            IERC20(daiToken).balanceOf(alice),
+            aliceBalanceBefore + rewardAmount,
+            "Reward should be transferred to receiver"
+        );
+
+        assertEq(
+            IERC20(daiToken).balanceOf(address(tokenWrapper)),
+            0,
+            "Wrapper should have no rewards left"
+        );
+    }
+
+    function test_multipleRewardTokens() public {
+        // Test claiming multiple different reward tokens
+        address daiToken = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+        address usdtToken = 0xdAC17F958D2ee523a2206206994597C13D831ec7; // USDT
+        uint256 amount1 = 50e18;
+        uint256 amount2 = 75e6; // USDT has 6 decimals
+
+        // Give wrapper both reward tokens
+        deal(daiToken, address(tokenWrapper), amount1);
+        deal(usdtToken, address(tokenWrapper), amount2);
+
+        uint256 alice1Before = IERC20(daiToken).balanceOf(alice);
+        uint256 alice2Before = IERC20(usdtToken).balanceOf(alice);
+
+        // Claim both rewards (only owner can claim)
+        vm.prank(address(this));
+        tokenWrapper.claimReward(alice, daiToken);
+        vm.prank(address(this));
+        tokenWrapper.claimReward(alice, usdtToken);
+
+        // Verify both were transferred
+        assertEq(IERC20(daiToken).balanceOf(alice), alice1Before + amount1, "DAI should be transferred");
+        assertEq(IERC20(usdtToken).balanceOf(alice), alice2Before + amount2, "USDT should be transferred");
+
+        assertEq(IERC20(daiToken).balanceOf(address(tokenWrapper)), 0, "Wrapper should have no DAI left");
+        assertEq(IERC20(usdtToken).balanceOf(address(tokenWrapper)), 0, "Wrapper should have no USDT left");
     }
 }

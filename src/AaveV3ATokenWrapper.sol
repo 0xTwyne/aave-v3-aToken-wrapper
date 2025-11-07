@@ -3,12 +3,13 @@
 pragma solidity ^0.8.28;
 
 import {EVCUtil} from "ethereum-vault-connector/utils/EVCUtil.sol";
-import {ERC20PermitUpgradeable, ERC20AaveLMUpgradeable, IRewardsController, PausableUpgradeable, IStataTokenV2, ERC4626Upgradeable, IPool as IAaveV3Pool, Math, IERC20Permit, ERC20Upgradeable} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
+import {ERC20PermitUpgradeable, ERC20AaveLMUpgradeable, PausableUpgradeable, IStataTokenV2, ERC4626Upgradeable, IPool as IAaveV3Pool, Math, IERC20Permit, ERC20Upgradeable} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
 import {CustomERC4626StataTokenUpgradeable} from "./CustomERC4626StataTokenUpgradeable.sol";
 import {OwnableUpgradeable, ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IERC20}  from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {UUPSUpgradeable}  from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {SafeERC20} from 'openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol';
 import {IAToken} from "aave-v3/interfaces/IAToken.sol";
 
 
@@ -19,6 +20,7 @@ interface ICollateralVaultFactory {
 
 error NotCollateralVault();
 error IncorrectEVC();
+error InvalidRewardToken();
 
 /// @title AaveV3ATokenWrapper
 /// @notice ERC4626 wrapper for Aave V3 aTokens to convert rebasing tokens to non-rebasing shares
@@ -27,7 +29,6 @@ error IncorrectEVC();
 /// @dev This contract is StataTokenV2 + UUPSUpgradeable + 2 custom fns at the end.
 contract AaveV3ATokenWrapper is
     ERC20PermitUpgradeable,
-    ERC20AaveLMUpgradeable,
     CustomERC4626StataTokenUpgradeable,
     PausableUpgradeable,
     OwnableUpgradeable,
@@ -41,11 +42,9 @@ contract AaveV3ATokenWrapper is
     constructor(
         address _evc,
         address _collateralVaultFactory,
-        IAaveV3Pool _aavePool,
-        IRewardsController rewardsController
+        IAaveV3Pool _aavePool
     )
         EVCUtil(_evc)
-        ERC20AaveLMUpgradeable(rewardsController)
         CustomERC4626StataTokenUpgradeable(_aavePool)
     {
         collateralVaultFactory = ICollateralVaultFactory(_collateralVaultFactory);
@@ -77,7 +76,6 @@ contract AaveV3ATokenWrapper is
     ) external initializer {
         __ERC20_init(staticATokenName, staticATokenSymbol);
         __ERC20Permit_init(staticATokenName);
-        __ERC20AaveLM_init(aToken);
         __ERC4626StataToken_init(aToken);
         __Pausable_init();
         __Ownable_init(owner);
@@ -100,25 +98,13 @@ contract AaveV3ATokenWrapper is
         return ERC4626Upgradeable.decimals();
     }
 
-    function _claimRewardsOnBehalf(
-        address onBehalfOf,
-        address receiver,
-        address[] memory rewards
-    ) internal virtual override whenNotPaused {
-        super._claimRewardsOnBehalf(onBehalfOf, receiver, rewards);
-    }
-
-    // @notice to merge inheritance with ERC20AaveLMUpgradeable.sol properly we put
-    // `whenNotPaused` here instead of using ERC20PausableUpgradeable
-    function _update(
-        address from,
-        address to,
-        uint256 amount
-    ) internal virtual override(ERC20AaveLMUpgradeable, ERC20Upgradeable) whenNotPaused {
-        ERC20AaveLMUpgradeable._update(from, to, amount);
-    }
-
     ///////////// Custom Twyne functions /////////////
+
+    function claimReward(address receiver, address reward) external onlyOwner {
+        require(reward != aToken() && reward != asset(), InvalidRewardToken());
+
+        SafeERC20.safeTransfer(IERC20(reward), receiver, IERC20(reward).balanceOf(address(this)));
+    }
 
     modifier onlyCV {
         require(collateralVaultFactory.isCollateralVault(msg.sender), NotCollateralVault());

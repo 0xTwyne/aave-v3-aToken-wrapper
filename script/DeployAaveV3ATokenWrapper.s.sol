@@ -30,8 +30,7 @@ contract DeployAaveV3ATokenWrapper is Script {
         implementation = address(new AaveV3ATokenWrapper(
             evc,
             collateralVaultFactory,
-            IAaveV3Pool(AAVE_POOL),
-            IRewardsController(address(AToken(WSTETH_ATOKEN).REWARDS_CONTROLLER()))
+            IAaveV3Pool(AAVE_POOL)
         ));
 
         bytes memory initData = abi.encodeCall(

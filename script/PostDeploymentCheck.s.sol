@@ -15,9 +15,8 @@ contract AaveV3ATokenWrapperV2 is AaveV3ATokenWrapper {
     constructor(
         address _evc,
         address _collateralVaultFactory,
-        IAaveV3Pool _aavePool,
-        IRewardsController rewardsController
-    ) AaveV3ATokenWrapper(_evc, _collateralVaultFactory, _aavePool, rewardsController) {}
+        IAaveV3Pool _aavePool
+    ) AaveV3ATokenWrapper(_evc, _collateralVaultFactory, _aavePool) {}
 
     function version() external pure override returns (uint) {
         return 2;
@@ -192,17 +191,12 @@ contract PostDeploymentCheck is Script {
         require(aavePool != address(0), "Aave pool not set");
         require(aavePool == expectedAavePool, "Aave pool mismatch");
 
-        // Check rewards controller
-        address rewardsController = address(wrapper.INCENTIVES_CONTROLLER());
-        require(rewardsController != address(0), "Rewards controller not set");
-
         // Verify aToken is valid
         require(aToken.code.length > 0, "aToken has no code");
 
         console.log("  [PASS] Aave integration verified");
         console.log("    aToken:", aToken);
         console.log("    Aave Pool:", aavePool);
-        console.log("    Rewards Controller:", rewardsController);
     }
 
     /// @notice Verify ERC4626 compliance
@@ -276,8 +270,7 @@ contract PostDeploymentCheck is Script {
         address implementationV2 = address(new AaveV3ATokenWrapperV2(
             evc,
             collateralVaultFactory,
-            IAaveV3Pool(expectedAavePool),
-            IRewardsController(address(AToken(expectedAToken).REWARDS_CONTROLLER()))
+            IAaveV3Pool(expectedAavePool)
         ));
 
         // Test that non-owner cannot upgrade
@@ -310,8 +303,7 @@ contract PostDeploymentCheck is Script {
         address originalImplementation = address(new AaveV3ATokenWrapper(
             evc,
             collateralVaultFactory,
-            IAaveV3Pool(expectedAavePool),
-            IRewardsController(address(AToken(expectedAToken).REWARDS_CONTROLLER()))
+            IAaveV3Pool(expectedAavePool)
         ));
 
         vm.startPrank(expectedAdmin);
