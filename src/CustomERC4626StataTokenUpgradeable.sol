@@ -7,7 +7,6 @@ import {IERC20Permit} from 'openzeppelin-contracts/contracts/token/ERC20/extensi
 
 import {IPool, IPoolAddressesProvider} from 'aave-v3/interfaces/IPool.sol';
 import {IAaveOracle} from 'aave-v3/interfaces/IAaveOracle.sol';
-import {DataTypes, ReserveConfiguration} from 'aave-v3/protocol/libraries/configuration/ReserveConfiguration.sol';
 
 import {IAToken} from 'aave-v3/extensions/stata-token/interfaces/IAToken.sol';
 import {IERC4626StataToken} from 'aave-v3/extensions/stata-token/interfaces/IERC4626StataToken.sol';

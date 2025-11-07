@@ -2,7 +2,8 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {IRewardsController, IAaveV3Pool, AaveV3ATokenWrapper, NotCollateralVault, InvalidRewardToken, ZeroIncentivesControllerIsForbidden} from "src/AaveV3ATokenWrapper.sol";
+import {IRewardsController, AaveV3ATokenWrapper, NotCollateralVault, ZeroIncentivesControllerIsForbidden} from "src/AaveV3ATokenWrapper.sol";
+import {IPool} from "aave-v3/interfaces/IPool.sol";
 import {IERC20}  from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20}  from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -35,7 +36,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
 
     address WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
     MockCollateralVaultFactory collateralVaultFactory;
-    IAaveV3Pool aavePool = IAaveV3Pool(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
+    IPool aavePool = IPool(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
     address aToken = 0x0B925eD163218f6662a35e0f0371Ac234f9E9371; // aWSTETH
     address owner;
     uint DEPOSIT_AMOUNT_INIT = 100 ether;
@@ -1019,7 +1020,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         uint256 amount = 1 ether;
         deal(WSTETH, address(this), amount);
         IERC20(WSTETH).approve(address(tokenWrapper), amount);
-        
+
         tokenWrapper.deposit(amount, address(this));
 
         // Set approval for transferFrom test before pausing
@@ -1049,18 +1050,18 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
     function test_burnShares_CV_pauseProtection() public {
         address vault = makeAddr("vault");
         collateralVaultFactory.setIsCollateral(vault, true);
-        
+
         vm.startPrank(vault);
-        
+
         uint256 amount = 1 ether;
         deal(WSTETH, vault, amount);
         IERC20(WSTETH).approve(address(tokenWrapper), amount);
-        
+
         tokenWrapper.deposit(amount, vault);
         uint256 sharesToBurn = tokenWrapper.balanceOf(vault) / 2;
 
         vm.stopPrank();
-        
+
         tokenWrapper.setPaused(true);
 
         vm.prank(vault);

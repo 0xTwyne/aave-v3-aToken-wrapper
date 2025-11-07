@@ -3,13 +3,11 @@
 pragma solidity ^0.8.28;
 
 import {EVCUtil} from "ethereum-vault-connector/utils/EVCUtil.sol";
-import {ERC20PermitUpgradeable, ERC20AaveLMUpgradeable, IRewardsController, PausableUpgradeable, IStataTokenV2, ERC4626Upgradeable, IPool as IAaveV3Pool, Math, IERC20Permit, ERC20Upgradeable} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
+import {ERC20PermitUpgradeable, IRewardsController, PausableUpgradeable, ERC4626Upgradeable, IPool, Math, ERC20Upgradeable} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
 import {CustomERC4626StataTokenUpgradeable} from "./CustomERC4626StataTokenUpgradeable.sol";
 import {OwnableUpgradeable, ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IERC20}  from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {UUPSUpgradeable}  from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {SafeERC20} from 'openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol';
 import {IAToken} from "aave-v3/interfaces/IAToken.sol";
 
 
@@ -20,7 +18,6 @@ interface ICollateralVaultFactory {
 
 error NotCollateralVault();
 error IncorrectEVC();
-error InvalidRewardToken();
 error ZeroIncentivesControllerIsForbidden();
 
 /// @title AaveV3ATokenWrapper
@@ -44,7 +41,7 @@ contract AaveV3ATokenWrapper is
     constructor(
         address _evc,
         address _collateralVaultFactory,
-        IAaveV3Pool _aavePool,
+        IPool _aavePool,
         IRewardsController rewardsController
     )
         EVCUtil(_evc)
