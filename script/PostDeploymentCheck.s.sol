@@ -192,12 +192,17 @@ contract PostDeploymentCheck is Script {
         require(aavePool != address(0), "Aave pool not set");
         require(aavePool == expectedAavePool, "Aave pool mismatch");
 
+        // Check rewards controller
+        address rewardsController = address(wrapper.INCENTIVES_CONTROLLER());
+        require(rewardsController != address(0), "Rewards controller not set");
+
         // Verify aToken is valid
         require(aToken.code.length > 0, "aToken has no code");
 
         console.log("  [PASS] Aave integration verified");
         console.log("    aToken:", aToken);
         console.log("    Aave Pool:", aavePool);
+        console.log("    Rewards Controller:", rewardsController);
     }
 
     /// @notice Verify ERC4626 compliance
