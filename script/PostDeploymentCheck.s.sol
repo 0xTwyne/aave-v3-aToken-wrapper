@@ -15,8 +15,9 @@ contract AaveV3ATokenWrapperV2 is AaveV3ATokenWrapper {
     constructor(
         address _evc,
         address _collateralVaultFactory,
-        IAaveV3Pool _aavePool
-    ) AaveV3ATokenWrapper(_evc, _collateralVaultFactory, _aavePool) {}
+        IAaveV3Pool _aavePool,
+        IRewardsController rewardsController
+    ) AaveV3ATokenWrapper(_evc, _collateralVaultFactory, _aavePool, rewardsController) {}
 
     function version() external pure override returns (uint) {
         return 2;
@@ -267,10 +268,12 @@ contract PostDeploymentCheck is Script {
         uint256 originalVersion = wrapper.version();
 
         // Deploy V2 implementation
+        address aToken = wrapper.aToken();
         address implementationV2 = address(new AaveV3ATokenWrapperV2(
             evc,
             collateralVaultFactory,
-            IAaveV3Pool(expectedAavePool)
+            IAaveV3Pool(expectedAavePool),
+            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
         ));
 
         // Test that non-owner cannot upgrade
@@ -303,7 +306,8 @@ contract PostDeploymentCheck is Script {
         address originalImplementation = address(new AaveV3ATokenWrapper(
             evc,
             collateralVaultFactory,
-            IAaveV3Pool(expectedAavePool)
+            IAaveV3Pool(expectedAavePool),
+            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
         ));
 
         vm.startPrank(expectedAdmin);

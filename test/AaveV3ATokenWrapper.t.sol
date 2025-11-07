@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {IAaveV3Pool, AaveV3ATokenWrapper, NotCollateralVault, InvalidRewardToken} from "src/AaveV3ATokenWrapper.sol";
+import {IRewardsController, IAaveV3Pool, AaveV3ATokenWrapper, NotCollateralVault, InvalidRewardToken, ZeroIncentivesControllerIsForbidden} from "src/AaveV3ATokenWrapper.sol";
 import {IERC20}  from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20}  from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -51,7 +51,8 @@ contract AaveV3ATokenWrapperTest is Test {
         address implementation = address(new AaveV3ATokenWrapper(
             evc,
             address(collateralVaultFactory),
-            aavePool
+            aavePool,
+            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
         ));
 
         // Encode initialization data

@@ -3,7 +3,7 @@
 pragma solidity ^0.8.28;
 
 import {EVCUtil} from "ethereum-vault-connector/utils/EVCUtil.sol";
-import {ERC20PermitUpgradeable, ERC20AaveLMUpgradeable, PausableUpgradeable, IStataTokenV2, ERC4626Upgradeable, IPool as IAaveV3Pool, Math, IERC20Permit, ERC20Upgradeable} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
+import {ERC20PermitUpgradeable, ERC20AaveLMUpgradeable, IRewardsController, PausableUpgradeable, IStataTokenV2, ERC4626Upgradeable, IPool as IAaveV3Pool, Math, IERC20Permit, ERC20Upgradeable} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
 import {CustomERC4626StataTokenUpgradeable} from "./CustomERC4626StataTokenUpgradeable.sol";
 import {OwnableUpgradeable, ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IERC20}  from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -21,6 +21,7 @@ interface ICollateralVaultFactory {
 error NotCollateralVault();
 error IncorrectEVC();
 error InvalidRewardToken();
+error ZeroIncentivesControllerIsForbidden();
 
 /// @title AaveV3ATokenWrapper
 /// @notice ERC4626 wrapper for Aave V3 aTokens to convert rebasing tokens to non-rebasing shares
@@ -36,19 +37,25 @@ contract AaveV3ATokenWrapper is
     EVCUtil
 {
     ICollateralVaultFactory public immutable collateralVaultFactory;
+    IRewardsController public immutable INCENTIVES_CONTROLLER;
 
     uint[50] internal __gap;
 
     constructor(
         address _evc,
         address _collateralVaultFactory,
-        IAaveV3Pool _aavePool
+        IAaveV3Pool _aavePool,
+        IRewardsController rewardsController
     )
         EVCUtil(_evc)
         CustomERC4626StataTokenUpgradeable(_aavePool)
     {
         collateralVaultFactory = ICollateralVaultFactory(_collateralVaultFactory);
         require(collateralVaultFactory.EVC() == _evc, IncorrectEVC());
+
+        require(address(rewardsController) != address(0), ZeroIncentivesControllerIsForbidden());
+        INCENTIVES_CONTROLLER = rewardsController;
+
         _disableInitializers();
     }
 
@@ -100,10 +107,19 @@ contract AaveV3ATokenWrapper is
 
     ///////////// Custom Twyne functions /////////////
 
-    function claimReward(address receiver, address reward) external onlyOwner {
-        require(reward != aToken() && reward != asset(), InvalidRewardToken());
+    /**
+     * @dev Claims reward to the desired address, on all the assets of the pool, accumulating the pending rewards
+     * @param to The address that will be receiving the rewards
+     * @param reward The address of the reward token
+     * @return The amount of rewards claimed
+     **/
+    function claimReward(address to, address reward) external onlyOwner returns (uint) {
+        address _aToken = aToken();
+        require(reward != _aToken && reward != asset(), InvalidRewardToken());
+        address[] memory assets = new address[](1);
+        assets[0] = _aToken;
 
-        SafeERC20.safeTransfer(IERC20(reward), receiver, IERC20(reward).balanceOf(address(this)));
+        return INCENTIVES_CONTROLLER.claimRewards(assets, type(uint).max, to, reward);
     }
 
     modifier onlyCV {

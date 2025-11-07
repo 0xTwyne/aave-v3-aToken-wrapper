@@ -29,7 +29,8 @@ contract UpgradeAaveV3ATokenWrapper is Script {
         newImplementation = address(new AaveV3ATokenWrapper(
             evc,
             collateralVaultFactory,
-            IAaveV3Pool(AAVE_POOL)
+            IAaveV3Pool(AAVE_POOL),
+            IRewardsController(address(AToken(WSTETH_ATOKEN).REWARDS_CONTROLLER()))
         ));
 
         AaveV3ATokenWrapper proxy = AaveV3ATokenWrapper(proxyAddress);
