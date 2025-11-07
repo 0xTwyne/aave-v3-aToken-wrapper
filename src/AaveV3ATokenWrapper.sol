@@ -105,6 +105,15 @@ contract AaveV3ATokenWrapper is
         return ERC4626Upgradeable.decimals();
     }
 
+    // @notice Override to be able to pause transfers
+    function _update(
+        address from,
+        address to,
+        uint256 amount
+    ) internal virtual override whenNotPaused {
+        ERC20Upgradeable._update(from, to, amount);
+    }
+
     ///////////// Custom Twyne functions /////////////
 
     /**
@@ -135,7 +144,7 @@ contract AaveV3ATokenWrapper is
 
         if (shares < actualScaledBalance) {
             _aToken.transferFrom(msg.sender, address(this), _convertToAssets(actualScaledBalance - shares, Math.Rounding.Floor));
-        } else {
+        } else if (shares > actualScaledBalance) {
             _aToken.transfer(msg.sender, _convertToAssets(shares - actualScaledBalance, Math.Rounding.Floor));
         }
     }
@@ -146,7 +155,7 @@ contract AaveV3ATokenWrapper is
     ///      needs to burn the corresponding shares since the removed aTokens are no longer a part of
     ///      this wrapper's totalAssets.
     /// @param shares Amount of shares corresponding to aTokens taken away in external liquidation
-    function burnShares_CV(uint shares) external onlyCV {
+    function burnShares_CV(uint shares) external onlyCV whenNotPaused {
         _burn(msg.sender, shares);
     }
 }

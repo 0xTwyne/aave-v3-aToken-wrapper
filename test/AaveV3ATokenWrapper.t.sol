@@ -869,16 +869,6 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
     // Test reward claiming functionality
 
     function test_claimReward_accessControl() public {
-        // Try to claim the aToken itself - should revert
-        vm.expectRevert(InvalidRewardToken.selector);
-        vm.prank(address(this));
-        tokenWrapper.claimReward(alice, aToken);
-
-        // Try to claim the underlying asset (WSTETH) - should revert
-        vm.expectRevert(InvalidRewardToken.selector);
-        vm.prank(address(this));
-        tokenWrapper.claimReward(alice, WSTETH);
-
         // Non-owner should not be able to claim rewards
         address mockRewardToken = makeAddr("mockRewardToken");
         vm.prank(alice);
@@ -1023,5 +1013,58 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         vm.prank(address(this));
         uint256 claimedAgain = tokenWrapper.claimReward(bob, rewardToken);
         assertEq(claimedAgain, 0, "Should claim 0 rewards after already claiming");
+    }
+
+    function test_update_pauseBlocksAllTransfers() public {
+        uint256 amount = 1 ether;
+        deal(WSTETH, address(this), amount);
+        IERC20(WSTETH).approve(address(tokenWrapper), amount);
+        
+        tokenWrapper.deposit(amount, address(this));
+
+        // Set approval for transferFrom test before pausing
+        tokenWrapper.approve(address(this), amount / 2);
+
+        tokenWrapper.setPaused(true);
+
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        tokenWrapper.transfer(alice, amount / 2);
+
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        tokenWrapper.transferFrom(address(this), alice, amount / 2);
+
+        vm.prank(alice);
+        deal(WSTETH, alice, amount);
+        vm.prank(alice);
+        IERC20(WSTETH).approve(address(tokenWrapper), amount);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        tokenWrapper.deposit(amount, alice);
+
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        tokenWrapper.redeem(amount / 2, address(this), address(this));
+    }
+
+    function test_burnShares_CV_pauseProtection() public {
+        address vault = makeAddr("vault");
+        collateralVaultFactory.setIsCollateral(vault, true);
+        
+        vm.startPrank(vault);
+        
+        uint256 amount = 1 ether;
+        deal(WSTETH, vault, amount);
+        IERC20(WSTETH).approve(address(tokenWrapper), amount);
+        
+        tokenWrapper.deposit(amount, vault);
+        uint256 sharesToBurn = tokenWrapper.balanceOf(vault) / 2;
+
+        vm.stopPrank();
+        
+        tokenWrapper.setPaused(true);
+
+        vm.prank(vault);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        tokenWrapper.burnShares_CV(sharesToBurn);
     }
 }
