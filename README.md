@@ -21,8 +21,14 @@ cp .env.example .env
 
 ## Running Tests
 
+Run all tests (FFI required for TestnetProcedures):
 ```sh
-FOUNDRY_PROFILE=mainnet forge test
+FOUNDRY_PROFILE=mainnet forge test --ffi
+```
+
+Run specific test function:
+```sh
+FOUNDRY_PROFILE=mainnet forge test --match-test test_claimReward --ffi -vv
 ```
 
 ## Deployment

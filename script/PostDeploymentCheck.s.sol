@@ -273,11 +273,12 @@ contract PostDeploymentCheck is Script {
         uint256 originalVersion = wrapper.version();
 
         // Deploy V2 implementation
+        address aToken = wrapper.aToken();
         address implementationV2 = address(new AaveV3ATokenWrapperV2(
             evc,
             collateralVaultFactory,
             IAaveV3Pool(expectedAavePool),
-            IRewardsController(address(AToken(expectedAToken).REWARDS_CONTROLLER()))
+            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
         ));
 
         // Test that non-owner cannot upgrade
@@ -311,7 +312,7 @@ contract PostDeploymentCheck is Script {
             evc,
             collateralVaultFactory,
             IAaveV3Pool(expectedAavePool),
-            IRewardsController(address(AToken(expectedAToken).REWARDS_CONTROLLER()))
+            IRewardsController(address(AToken(aToken).REWARDS_CONTROLLER()))
         ));
 
         vm.startPrank(expectedAdmin);

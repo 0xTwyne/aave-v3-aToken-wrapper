@@ -3,12 +3,11 @@
 pragma solidity ^0.8.28;
 
 import {EVCUtil} from "ethereum-vault-connector/utils/EVCUtil.sol";
-import {ERC20PermitUpgradeable, ERC20AaveLMUpgradeable, IRewardsController, PausableUpgradeable, IStataTokenV2, ERC4626Upgradeable, IPool as IAaveV3Pool, Math, IERC20Permit, ERC20Upgradeable} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
+import {ERC20PermitUpgradeable, IRewardsController, PausableUpgradeable, ERC4626Upgradeable, IPool, Math, ERC20Upgradeable} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
 import {CustomERC4626StataTokenUpgradeable} from "./CustomERC4626StataTokenUpgradeable.sol";
 import {OwnableUpgradeable, ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IERC20}  from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {UUPSUpgradeable}  from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IAToken} from "aave-v3/interfaces/IAToken.sol";
 
 
@@ -19,6 +18,7 @@ interface ICollateralVaultFactory {
 
 error NotCollateralVault();
 error IncorrectEVC();
+error ZeroIncentivesControllerIsForbidden();
 
 /// @title AaveV3ATokenWrapper
 /// @notice ERC4626 wrapper for Aave V3 aTokens to convert rebasing tokens to non-rebasing shares
@@ -27,7 +27,6 @@ error IncorrectEVC();
 /// @dev This contract is StataTokenV2 + UUPSUpgradeable + 2 custom fns at the end.
 contract AaveV3ATokenWrapper is
     ERC20PermitUpgradeable,
-    ERC20AaveLMUpgradeable,
     CustomERC4626StataTokenUpgradeable,
     PausableUpgradeable,
     OwnableUpgradeable,
@@ -35,21 +34,25 @@ contract AaveV3ATokenWrapper is
     EVCUtil
 {
     ICollateralVaultFactory public immutable collateralVaultFactory;
+    IRewardsController public immutable INCENTIVES_CONTROLLER;
 
     uint[50] internal __gap;
 
     constructor(
         address _evc,
         address _collateralVaultFactory,
-        IAaveV3Pool _aavePool,
+        IPool _aavePool,
         IRewardsController rewardsController
     )
         EVCUtil(_evc)
-        ERC20AaveLMUpgradeable(rewardsController)
         CustomERC4626StataTokenUpgradeable(_aavePool)
     {
         collateralVaultFactory = ICollateralVaultFactory(_collateralVaultFactory);
         require(collateralVaultFactory.EVC() == _evc, IncorrectEVC());
+
+        require(address(rewardsController) != address(0), ZeroIncentivesControllerIsForbidden());
+        INCENTIVES_CONTROLLER = rewardsController;
+
         _disableInitializers();
     }
 
@@ -77,7 +80,6 @@ contract AaveV3ATokenWrapper is
     ) external initializer {
         __ERC20_init(staticATokenName, staticATokenSymbol);
         __ERC20Permit_init(staticATokenName);
-        __ERC20AaveLM_init(aToken);
         __ERC4626StataToken_init(aToken);
         __Pausable_init();
         __Ownable_init(owner);
@@ -100,25 +102,29 @@ contract AaveV3ATokenWrapper is
         return ERC4626Upgradeable.decimals();
     }
 
-    function _claimRewardsOnBehalf(
-        address onBehalfOf,
-        address receiver,
-        address[] memory rewards
-    ) internal virtual override whenNotPaused {
-        super._claimRewardsOnBehalf(onBehalfOf, receiver, rewards);
-    }
-
-    // @notice to merge inheritance with ERC20AaveLMUpgradeable.sol properly we put
-    // `whenNotPaused` here instead of using ERC20PausableUpgradeable
+    // @notice Override to be able to pause transfers
     function _update(
         address from,
         address to,
         uint256 amount
-    ) internal virtual override(ERC20AaveLMUpgradeable, ERC20Upgradeable) whenNotPaused {
-        ERC20AaveLMUpgradeable._update(from, to, amount);
+    ) internal virtual override whenNotPaused {
+        ERC20Upgradeable._update(from, to, amount);
     }
 
     ///////////// Custom Twyne functions /////////////
+
+    /**
+     * @dev Claims reward to the desired address, on all the assets of the pool, accumulating the pending rewards
+     * @param to The address that will be receiving the rewards
+     * @param reward The address of the reward token
+     * @return The amount of rewards claimed
+     **/
+    function claimReward(address to, address reward) external onlyOwner returns (uint) {
+        address[] memory assets = new address[](1);
+        assets[0] = aToken();
+
+        return INCENTIVES_CONTROLLER.claimRewards(assets, type(uint).max, to, reward);
+    }
 
     modifier onlyCV {
         require(collateralVaultFactory.isCollateralVault(msg.sender), NotCollateralVault());
@@ -128,14 +134,14 @@ contract AaveV3ATokenWrapper is
     /// @notice Allows collateral vaults to adjust their aTokens corresponding to totalAssetsDepositedOrReserved
     /// @dev It makes the aToken.scaledBalance(msg.sender) same as `shares`
     /// @param shares Amount of shares equivalent to which collateral vault should have aToken balance
-    function rebalanceATokens_CV(uint shares) external onlyCV {
+    function rebalanceATokens_CV(uint shares) external onlyCV whenNotPaused {
         IAToken _aToken = IAToken(aToken());
 
         uint actualScaledBalance = _aToken.scaledBalanceOf(msg.sender);
 
         if (shares < actualScaledBalance) {
             _aToken.transferFrom(msg.sender, address(this), _convertToAssets(actualScaledBalance - shares, Math.Rounding.Floor));
-        } else {
+        } else if (shares > actualScaledBalance) {
             _aToken.transfer(msg.sender, _convertToAssets(shares - actualScaledBalance, Math.Rounding.Floor));
         }
     }
@@ -145,6 +151,7 @@ contract AaveV3ATokenWrapper is
     ///      from the aTokens transferred from this wrapper to the collateral vault. This wrapper
     ///      needs to burn the corresponding shares since the removed aTokens are no longer a part of
     ///      this wrapper's totalAssets.
+    /// @dev Can be paused since _update() can be paused
     /// @param shares Amount of shares corresponding to aTokens taken away in external liquidation
     function burnShares_CV(uint shares) external onlyCV {
         _burn(msg.sender, shares);
