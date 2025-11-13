@@ -8,6 +8,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AToken} from "aave-v3/protocol/tokenization/AToken.sol";
 import {MockCollateralVaultFactory} from "./AaveV3ATokenWrapper.t.sol";
+import {IAToken} from "aave-v3/interfaces/IAToken.sol";
 
 // Mock implementation for testing upgrades
 contract AaveV3ATokenWrapperV2 is AaveV3ATokenWrapper {
@@ -31,12 +32,13 @@ contract AaveV3ATokenWrapperV2 is AaveV3ATokenWrapper {
 
 
 contract AaveV3ATokenWrapperUpgradeTest is Test {
-    // Mainnet addresses
+    // Chain-specific addresses
     address constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
-    address constant WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
-    IAaveV3Pool constant aavePool = IAaveV3Pool(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
-    address constant aToken = 0x0B925eD163218f6662a35e0f0371Ac234f9E9371; // aWSTETH
+    address WSTETH;
+    address aavePoolAddress;
+    address aToken;
 
+    IAaveV3Pool aavePool;
     AaveV3ATokenWrapper public proxy;
     address public implementation;
     MockCollateralVaultFactory public collateralVaultFactory;
@@ -44,7 +46,27 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
     address owner;
     address alice;
 
+    error UnknownProfile();
+
     function setUp() public {
+        // Set chain-specific addresses
+        if (block.chainid == 1) {
+            // Ethereum Mainnet
+            WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
+            aavePoolAddress = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
+        } else if (block.chainid == 8453) {
+            // Base
+            WSTETH = 0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452;
+            aavePoolAddress = 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5;
+        } else {
+            revert UnknownProfile();
+        }
+
+        aavePool = IAaveV3Pool(aavePoolAddress);
+
+        aToken = aavePool.getReserveData(WSTETH).aTokenAddress;
+        require(IAToken(aToken).UNDERLYING_ASSET_ADDRESS() == WSTETH, "underlying asset not correct");
+
         owner = makeAddr('owner');
         alice = makeAddr('alice');
 

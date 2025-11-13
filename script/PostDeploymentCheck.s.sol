@@ -74,8 +74,8 @@ contract PostDeploymentCheck is Script {
             expectedAToken = 0x0B925eD163218f6662a35e0f0371Ac234f9E9371; // aWSTETH
             expectedAavePool = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
         } else if (block.chainid == 8453) { // Base
-            // Update these with Base-specific addresses when available
-            revert CheckFailed("Base addresses not configured");
+            expectedAToken = 0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452; // aWSTETH
+            expectedAavePool = 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5;
         } else {
             revert CheckFailed("Unsupported chain");
         }

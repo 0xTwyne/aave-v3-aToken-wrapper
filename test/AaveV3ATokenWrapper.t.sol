@@ -30,10 +30,13 @@ contract MockCollateralVaultFactory {
 contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
     AaveV3ATokenWrapper tokenWrapper;
 
-    address WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
+    // Chain-specific addresses
+    address WSTETH;
+    address aavePoolAddress;
+    address aToken;
+
     MockCollateralVaultFactory collateralVaultFactory;
-    IPool aavePool = IPool(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
-    address aToken = 0x0B925eD163218f6662a35e0f0371Ac234f9E9371; // aWSTETH
+    IPool aavePool;
     address owner;
     uint DEPOSIT_AMOUNT_INIT = 100 ether;
     uint DEPOSIT_AMOUNT = 20 ether;
@@ -52,7 +55,27 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         uint32 emissionDuration;
     }
 
+    error UnknownProfile();
+
     function setUp() public {
+        // Set chain-specific addresses
+        if (block.chainid == 1) {
+            // Ethereum Mainnet
+            WSTETH = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
+            aavePoolAddress = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
+        } else if (block.chainid == 8453) {
+            // Base
+            WSTETH = 0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452;
+            aavePoolAddress = 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5;
+        } else {
+            revert UnknownProfile();
+        }
+
+        aavePool = IPool(aavePoolAddress);
+
+        aToken = aavePool.getReserveData(WSTETH).aTokenAddress;
+        require(IAToken(aToken).UNDERLYING_ASSET_ADDRESS() == WSTETH, "underlying asset not correct");
+
         // Initialize Aave testnet environment
         initTestEnvironment(false);
 
