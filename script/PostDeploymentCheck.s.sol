@@ -74,7 +74,7 @@ contract PostDeploymentCheck is Script {
             expectedAToken = 0x0B925eD163218f6662a35e0f0371Ac234f9E9371; // aWSTETH
             expectedAavePool = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
         } else if (block.chainid == 8453) { // Base
-            expectedAToken = 0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452; // aWSTETH
+            expectedAToken = 0x99CBC45ea5bb7eF3a5BC08FB1B7E56bB2442Ef0D; // aWSTETH
             expectedAavePool = 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5;
         } else {
             revert CheckFailed("Unsupported chain");
@@ -209,10 +209,10 @@ contract PostDeploymentCheck is Script {
     function checkERC4626Compliance() internal view {
         console.log("Checking ERC4626 compliance...");
 
-        require(wrapper.maxDeposit(address(this)) == type(uint).max, "maxDeposit != max");
-        require(wrapper.maxMint(address(this)) == type(uint).max, "maxMint != max");
-        require(wrapper.maxWithdraw(address(this)) == type(uint).max, "maxWithdraw != max");
-        require(wrapper.maxRedeem(address(this)) == type(uint).max, "maxRedeem != max");
+        require(wrapper.maxDeposit(expectedAdmin) == type(uint).max, "maxDeposit != max");
+        require(wrapper.maxMint(expectedAdmin) == type(uint).max, "maxMint != max");
+        require(wrapper.maxWithdraw(expectedAdmin) == type(uint).max, "maxWithdraw != max");
+        require(wrapper.maxRedeem(expectedAdmin) == type(uint).max, "maxRedeem != max");
 
         // Check totalAssets can be called
         require(wrapper.totalAssets() == 0, "totalAssets != 0");
