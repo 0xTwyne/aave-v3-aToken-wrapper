@@ -73,6 +73,7 @@ contract DeployAaveV3ATokenWrapper is Script {
         vm.stopBroadcast();
 
         logDeployment(proxy, implementation, evc, collateralVaultFactory, SAFE);
+        writeDeploymentToJson(proxy);
 
         return (proxy, implementation);
     }
@@ -91,5 +92,18 @@ contract DeployAaveV3ATokenWrapper is Script {
         console.log("Collateral Vault Factory:", collateralVaultFactory);
         console.log("Owner:", owner);
         console.log("====================================");
+    }
+
+    function writeDeploymentToJson(
+        address proxy
+    ) internal {
+        string memory chainName = block.chainid == 1 ? "mainnet" : block.chainid == 8453 ? "base" : "unknown";
+        string memory fileName = string.concat(chainName, ".json");
+
+        string memory json = "deployment";
+        json = vm.serializeAddress(json, "proxy", proxy);
+
+        vm.writeFile(fileName, json);
+        console.log("Deployment info written to:", fileName);
     }
 }
