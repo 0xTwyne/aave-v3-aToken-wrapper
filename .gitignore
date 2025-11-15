@@ -14,3 +14,10 @@ docs/
 .env
 
 *.json
+
+# System files
+.DS_Store
+
+# Invariant testing artifacts
+_corpus/
+crytic-export/
