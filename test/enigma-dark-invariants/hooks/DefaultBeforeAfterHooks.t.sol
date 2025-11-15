@@ -15,7 +15,6 @@ abstract contract DefaultBeforeAfterHooks is BaseHooks {
         // 4626
         uint256 totalAssets;
         uint256 totalSupply;
-        uint256 balance; // TODO replace with protocol variables
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -56,12 +55,18 @@ abstract contract DefaultBeforeAfterHooks is BaseHooks {
     function _setDefaultValues(DefaultVars storage _defaultVars) internal {}
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
-    //                              POST CONDITIONS: DEFAULT VALUES                              //
+    //                                POST CONDITIONS: ERC4626                                   //
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
-    /*     function assert_GPOST_BASE_ASSETS() internal {
-        assertEq(defaultVarsAfter.balance, defaultVarsBefore.balance);
-    } */
+    function assert_GPOST_ERC4626() internal {
+        assertFullMulGe(
+            defaultVarsAfter.totalAssets,
+            defaultVarsBefore.totalSupply,
+            defaultVarsBefore.totalAssets,
+            defaultVarsAfter.totalSupply,
+            GPOST_ERC4626_A
+        );
+    }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
     //                                          HELPERS                                          //

@@ -42,7 +42,8 @@ abstract contract HookAggregator is DefaultBeforeAfterHooks {
 
     /// @notice Postconditions for the handlers
     function _checkPostConditions() internal {
-        // Implement post conditions here
+        // ERC4626
+        assert_GPOST_ERC4626();
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////

@@ -93,13 +93,23 @@ contract AaveV3ATokenWrapperHandler is BaseHandler, IAaveV3ATokenWrapperHandler 
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
     function rebalanceATokens_CV(uint256 shares) external {
+        _before();
+
         vm.prank(collateralVault);
         aaveV3ATokenWrapper.rebalanceATokens_CV(shares);
+
+        _after();
+
+        assertEq(aToken.scaledBalanceOf(collateralVault), shares, HSPOST_ATOKEN_A);
+        assertEq(defaultVarsBefore.totalSupply, defaultVarsAfter.totalSupply, HSPOST_ATOKEN_B);
     }
 
     function burnShares_CV(uint256 shares) external {
         vm.prank(collateralVault);
+
+        _before();
         aaveV3ATokenWrapper.burnShares_CV(shares);
+        _after();
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////

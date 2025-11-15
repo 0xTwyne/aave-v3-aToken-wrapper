@@ -109,6 +109,22 @@ abstract contract PropertiesAsserts {
         }
     }
 
+    /// @notice Asserts that `a * b >= x * y` with full 512-bit precision.
+    function assertFullMulGe(uint256 a, uint256 b, uint256 x, uint256 y, string memory reason) internal {
+        if (!fullMulGte(a, b, x, y)) {
+            string memory aStr = PropertiesLibString.toString(a);
+            string memory bStr = PropertiesLibString.toString(b);
+            string memory xStr = PropertiesLibString.toString(x);
+            string memory yStr = PropertiesLibString.toString(y);
+
+            bytes memory assertMsg =
+                abi.encodePacked("Invalid: ", aStr, "*", bStr, " < ", xStr, "*", yStr, " failed, reason: ", reason);
+
+            emit AssertGeFail(string(assertMsg));
+            assert(false);
+        }
+    }
+
     /// @notice int256 version of assertGe
     function assertGe(int256 a, int256 b, string memory reason) internal {
         if (!(a >= b)) {
@@ -325,6 +341,21 @@ abstract contract PropertiesAsserts {
             return value;
         }
         return a;
+    }
+
+    /// @notice Returns a * b >= x * y, with full precision.
+    function fullMulGte(uint256 a, uint256 b, uint256 x, uint256 y) internal pure returns (bool result) {
+        /// @solidity memory-safe-assembly
+        assembly {
+            let m := not(0)
+            let mm1 := mulmod(a, b, m)
+            let lo1 := mul(a, b)
+            let hi1 := sub(sub(mm1, lo1), lt(mm1, lo1))
+            let mm2 := mulmod(x, y, m)
+            let lo2 := mul(x, y)
+            let hi2 := sub(sub(mm2, lo2), lt(mm2, lo2))
+            result := or(gt(hi1, hi2), and(eq(hi1, hi2), iszero(lt(lo1, lo2))))
+        }
     }
 }
 

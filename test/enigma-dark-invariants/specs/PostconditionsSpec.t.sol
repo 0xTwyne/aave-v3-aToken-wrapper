@@ -28,15 +28,13 @@ abstract contract PostconditionsSpec {
 
     string constant GPOST_ERC4626_A = "GPOST_ERC4626_A: The exchange rate assets/shares should increase monotonically"; // TODO
 
-    string constant GPOST_ERC4626_B = "GPOST_ERC4626_B: The sum of all individual share balances should equal the total supply"; // TODO
-
     ///////////////////////////////////////////////////////////////////////////////////////////////
     //                                          ATOKEN                                           //
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
-    string constant HSPOST_ATOKEN_A = "HSPOST_ATOKEN_A: After rebalance, the collateral vault's aToken scaled balance should equal the target shares"; // TODO
+    string constant HSPOST_ATOKEN_A = "HSPOST_ATOKEN_A: After rebalance, the collateral vault's aToken scaled balance should equal the target shares";
 
-    string constant HSPOST_ATOKEN_B = "HSPOST_ATOKEN_B: During rebalance, totalSupply before == totalSupply after"; // TODO
+    string constant HSPOST_ATOKEN_B = "HSPOST_ATOKEN_B: During rebalance, totalSupply before == totalSupply after";
 
 
 }

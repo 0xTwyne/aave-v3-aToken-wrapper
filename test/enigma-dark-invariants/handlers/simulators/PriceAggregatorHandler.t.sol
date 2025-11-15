@@ -16,7 +16,7 @@ contract PriceAggregatorHandler is BaseHandler {
     //                                          ACTIONS                                          //
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
-    function setLatestAnswer(int256 _price, uint8 i) public {
+    function setLatestAnswer(int256 _price, uint8 i) external {
         // Get a random price aggregator
         address priceAggregator = _getRandomPriceAggregator(i);
 
