@@ -32,7 +32,10 @@ abstract contract DefaultBeforeAfterHooks is BaseHooks {
     function _setUpDefaultHooks() internal {}
 
     /// @notice Helper to initialize storage arrays of default vars
-    function _setUpDefaultVars(DefaultVars storage _defaultVars) internal {}
+    function _setUpDefaultVars(DefaultVars storage _defaultVars) internal {
+        _defaultVars.totalAssets = aaveV3ATokenWrapper.totalAssets();
+        _defaultVars.totalSupply = aaveV3ATokenWrapper.totalSupply();
+    }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
     //                                           HOOKS                                           //
