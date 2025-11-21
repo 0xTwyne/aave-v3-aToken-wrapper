@@ -9,7 +9,7 @@ library IERC4626StataToken {
     }
 }
 
-interface AaveV3ATokenWrapper {
+interface IAaveV3ATokenWrapper {
     error AddressEmptyCode(address target);
     error ControllerDisabled();
     error ECDSAInvalidSignature();
@@ -33,8 +33,8 @@ interface AaveV3ATokenWrapper {
     error EnforcedPause();
     error ExpectedPause();
     error FailedCall();
+    error IncorrectEVC();
     error InvalidAccountNonce(address account, uint256 currentNonce);
-    error InvalidClaimer(address claimer);
     error InvalidInitialization();
     error NotAuthorized();
     error NotCollateralVault();
@@ -43,8 +43,6 @@ interface AaveV3ATokenWrapper {
     error OwnableInvalidOwner(address owner);
     error OwnableUnauthorizedAccount(address account);
     error PoolAddressMismatch(address pool);
-    error RewardNotInitialized(address reward);
-    error SafeCastOverflowedUintDowncast(uint8 bits, uint256 value);
     error SafeERC20FailedOperation(address token);
     error StaticATokenInvalidZeroShares();
     error UUPSUnauthorizedCallContext();
@@ -57,7 +55,6 @@ interface AaveV3ATokenWrapper {
     event Initialized(uint64 version);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event Paused(address account);
-    event RewardTokenRegistered(address indexed reward, uint256 startIndex);
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Unpaused(address account);
     event Upgraded(address indexed implementation);
@@ -78,11 +75,8 @@ interface AaveV3ATokenWrapper {
     function asset() external view returns (address);
     function balanceOf(address account) external view returns (uint256);
     function burnShares_CV(uint256 shares) external;
-    function claimRewards(address receiver, address[] memory rewards) external;
-    function claimRewardsOnBehalf(address onBehalfOf, address receiver, address[] memory rewards) external;
-    function claimRewardsToSelf(address[] memory rewards) external;
+    function claimReward(address to, address reward) external returns (uint256);
     function collateralVaultFactory() external view returns (address);
-    function collectAndUpdateRewards(address reward) external returns (uint256);
     function convertToAssets(uint256 shares) external view returns (uint256);
     function convertToShares(uint256 assets) external view returns (uint256);
     function decimals() external view returns (uint8);
@@ -107,19 +101,13 @@ interface AaveV3ATokenWrapper {
             bytes32 salt,
             uint256[] memory extensions
         );
-    function getClaimableRewards(address user, address reward) external view returns (uint256);
-    function getCurrentRewardsIndex(address reward) external view returns (uint256);
-    function getReferenceAsset() external view returns (address);
-    function getTotalClaimableRewards(address reward) external view returns (uint256);
-    function getUnclaimedRewards(address user, address reward) external view returns (uint256);
     function initialize(address aToken, address owner, string memory staticATokenName, string memory staticATokenSymbol)
         external;
-    function isRegisteredRewardToken(address reward) external view returns (bool);
     function latestAnswer() external view returns (int256);
-    function maxDeposit(address) external view returns (uint256);
-    function maxMint(address) external view returns (uint256);
-    function maxRedeem(address owner) external view returns (uint256);
-    function maxWithdraw(address owner) external view returns (uint256);
+    function maxDeposit(address) external pure returns (uint256);
+    function maxMint(address) external pure returns (uint256);
+    function maxRedeem(address) external pure returns (uint256);
+    function maxWithdraw(address) external pure returns (uint256);
     function mint(uint256 shares, address receiver) external returns (uint256);
     function name() external view returns (string memory);
     function nonces(address owner) external view returns (uint256);
@@ -135,10 +123,9 @@ interface AaveV3ATokenWrapper {
     function rebalanceATokens_CV(uint256 shares) external;
     function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
     function redeemATokens(uint256 shares, address receiver, address owner) external returns (uint256);
-    function refreshRewardTokens() external;
     function renounceOwnership() external;
-    function rewardTokens() external view returns (address[] memory);
     function setPaused(bool paused) external;
+    function skim(address receiver) external;
     function symbol() external view returns (string memory);
     function totalAssets() external view returns (uint256);
     function totalSupply() external view returns (uint256);

@@ -127,15 +127,16 @@ contract AaveV3ATokenWrapper is
     }
 
     function skim(address receiver) external {
-        uint256 assets = IERC20(asset()).balanceOf(address(this));
+        IERC20 __asset = IERC20(asset());
+        uint256 assets = __asset.balanceOf(address(this));
 
         uint256 shares = _convertToShares(assets, Math.Rounding.Floor);
 
         require(shares > 0, StaticATokenInvalidZeroShares());
 
         // Supply to Aave (wrapper gets aTokens)
-        IERC20(asset()).approve(address(POOL), assets);
-        POOL.supply(asset(), assets, address(this), 0);
+        __asset.approve(address(POOL), assets);
+        POOL.supply(address(__asset), assets, address(this), 0);
 
         _mint(receiver, shares);
     }
