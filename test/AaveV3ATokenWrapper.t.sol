@@ -1132,6 +1132,21 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         assertGt(wrapperATokenBalanceAfter, wrapperATokenBalanceBefore, "Wrapper should have more aTokens");
     }
 
+    function test_skim_shares() public {
+        uint snapshot = vm.snapshot();
+        uint256 amount = 1 ether;
+        a_deposit(amount);
+
+        uint depositShares = tokenWrapper.balanceOf(alice);
+
+        vm.revertTo(snapshot);
+
+        deal(WSTETH, address(tokenWrapper), amount);
+        tokenWrapper.skim(alice);
+
+        assertEq(tokenWrapper.balanceOf(alice), depositShares, "Deposit and Skim should lead to same number of shares");
+    }
+
     function test_skim_anyoneCanCall() public {
         deal(WSTETH, address(tokenWrapper), 1 ether);
 
