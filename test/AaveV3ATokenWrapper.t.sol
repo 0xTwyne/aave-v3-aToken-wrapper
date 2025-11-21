@@ -1109,4 +1109,49 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
         tokenWrapper.rebalanceATokens_CV(sharesToRebalance);
     }
+
+    function test_skim() public {
+        uint256 amount = 1 ether;
+        deal(WSTETH, address(tokenWrapper), amount);
+
+        uint256 wrapperAssetBalanceBefore = IERC20(WSTETH).balanceOf(address(tokenWrapper));
+        uint256 aliceSharesBefore = tokenWrapper.balanceOf(alice);
+        uint256 wrapperATokenBalanceBefore = IERC20(aToken).balanceOf(address(tokenWrapper));
+
+        assertEq(wrapperAssetBalanceBefore, amount, "Wrapper should have WSTETH balance");
+        assertEq(aliceSharesBefore, 0, "Alice should have no shares initially");
+
+        tokenWrapper.skim(alice);
+
+        uint256 wrapperAssetBalanceAfter = IERC20(WSTETH).balanceOf(address(tokenWrapper));
+        uint256 aliceSharesAfter = tokenWrapper.balanceOf(alice);
+        uint256 wrapperATokenBalanceAfter = IERC20(aToken).balanceOf(address(tokenWrapper));
+
+        assertEq(wrapperAssetBalanceAfter, 0, "Wrapper should have no WSTETH balance after skim");
+        assertGt(aliceSharesAfter, 0, "Alice should receive wrapper shares");
+        assertGt(wrapperATokenBalanceAfter, wrapperATokenBalanceBefore, "Wrapper should have more aTokens");
+    }
+
+    function test_skim_anyoneCanCall() public {
+        deal(WSTETH, address(tokenWrapper), 1 ether);
+
+        uint256 bobSharesBefore = tokenWrapper.balanceOf(bob);
+
+        vm.prank(alice);
+        tokenWrapper.skim(bob);
+
+        uint256 bobSharesAfter = tokenWrapper.balanceOf(bob);
+        assertGt(bobSharesAfter, bobSharesBefore, "Bob should receive wrapper shares from skim called by Alice");
+    }
+
+    function test_skim_revertOnZeroShares() public {
+        vm.expectRevert(abi.encodeWithSignature("StaticATokenInvalidZeroShares()"));
+        tokenWrapper.skim(alice);
+
+        // Test 1 wei which should definitely result in 0 shares due to rounding
+        deal(WSTETH, address(tokenWrapper), 1);
+
+        vm.expectRevert(abi.encodeWithSignature("StaticATokenInvalidZeroShares()"));
+        tokenWrapper.skim(alice);
+    }
 }

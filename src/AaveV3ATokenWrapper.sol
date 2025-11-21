@@ -126,6 +126,20 @@ contract AaveV3ATokenWrapper is
         return INCENTIVES_CONTROLLER.claimRewards(assets, type(uint).max, to, reward);
     }
 
+    function skim(address receiver) external {
+        uint256 assets = IERC20(asset()).balanceOf(address(this));
+
+        uint256 shares = _convertToShares(assets, Math.Rounding.Floor);
+
+        require(shares > 0, StaticATokenInvalidZeroShares());
+
+        // Supply to Aave (wrapper gets aTokens)
+        IERC20(asset()).approve(address(POOL), assets);
+        POOL.supply(asset(), assets, address(this), 0);
+
+        _mint(receiver, shares);
+    }
+
     modifier onlyCV {
         require(collateralVaultFactory.isCollateralVault(msg.sender), NotCollateralVault());
         _;
