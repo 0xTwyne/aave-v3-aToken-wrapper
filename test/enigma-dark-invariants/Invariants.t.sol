@@ -31,6 +31,11 @@ abstract contract Invariants is BaseInvariants {
         assert_INV_AVAILABILITY_A();
         assert_INV_AVAILABILITY_B();
 
+        assert_ERC4626_DEPOSIT_INVARIANT_A();
+        assert_ERC4626_MINT_INVARIANT_A();
+        assert_ERC4626_WITHDRAW_INVARIANT_A();
+        assert_ERC4626_REDEEM_INVARIANT_A();
+
         return true;
     }
 }

@@ -24,9 +24,11 @@ contract ERC4626Handler is BaseHandler, IERC4626Handler {
     //                                          ACTIONS                                          //
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
-    function deposit(uint256 assets) external setup {
+    function deposit(uint256 assets) public setup returns (uint256 addedShares) {
         bool success;
         bytes memory returnData;
+
+        uint256 previewShares = aaveV3ATokenWrapper.previewDeposit(assets);
 
         _before();
         (success, returnData) =
@@ -34,14 +36,20 @@ contract ERC4626Handler is BaseHandler, IERC4626Handler {
 
         if (success) {
             _after();
+
+            addedShares = abi.decode(returnData, (uint256));
+
+            assertLe(previewShares, addedShares, ERC4626_DEPOSIT_INVARIANT_B);
         } else {
             revert("ERC4626Handler: deposit failed");
         }
     }
 
-    function mint(uint256 shares) external setup {
+    function mint(uint256 shares) public setup returns (uint256 addedAssets) {
         bool success;
         bytes memory returnData;
+
+        uint256 previewAssets = aaveV3ATokenWrapper.previewMint(shares);
 
         _before();
         (success, returnData) =
@@ -49,14 +57,20 @@ contract ERC4626Handler is BaseHandler, IERC4626Handler {
 
         if (success) {
             _after();
+
+            addedAssets = abi.decode(returnData, (uint256));
+
+            assertGe(previewAssets, addedAssets, ERC4626_MINT_INVARIANT_B);
         } else {
             revert("ERC4626Handler: mint failed");
         }
     }
 
-    function withdraw(uint256 assets) external setup {
+    function withdraw(uint256 assets) public setup returns (uint256 removedShares) {
         bool success;
         bytes memory returnData;
+
+        uint256 previewShares = aaveV3ATokenWrapper.previewWithdraw(assets);
 
         _before();
         (success, returnData) = actor.proxy(
@@ -65,14 +79,20 @@ contract ERC4626Handler is BaseHandler, IERC4626Handler {
 
         if (success) {
             _after();
+
+            removedShares = abi.decode(returnData, (uint256));
+
+            assertGe(previewShares, removedShares, ERC4626_WITHDRAW_INVARIANT_B);
         } else {
             revert("ERC4626Handler: withdraw failed");
         }
     }
 
-    function redeem(uint256 shares) external setup {
+    function redeem(uint256 shares) public setup returns (uint256 removedAssets) {
         bool success;
         bytes memory returnData;
+
+        uint256 previewAssets = aaveV3ATokenWrapper.previewRedeem(shares);
 
         _before();
         (success, returnData) = actor.proxy(
@@ -81,6 +101,10 @@ contract ERC4626Handler is BaseHandler, IERC4626Handler {
 
         if (success) {
             _after();
+
+            removedAssets = abi.decode(returnData, (uint256));
+
+            assertLe(previewAssets, removedAssets, ERC4626_REDEEM_INVARIANT_B);
         } else {
             revert("ERC4626Handler: redeem failed");
         }
@@ -106,4 +130,52 @@ contract ERC4626Handler is BaseHandler, IERC4626Handler {
     ///////////////////////////////////////////////////////////////////////////////////////////////
     //                                           HELPERS                                         //
     ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    function assert_ERC4626_ROUNDTRIP_INVARIANT_A(uint256 amount) external {
+        uint256 addedShares = deposit(amount);
+        uint256 removedAssets = redeem(addedShares);
+        assertLe(removedAssets, amount, ERC4626_ROUNDTRIP_INVARIANT_A);
+    }
+
+    function assert_ERC4626_ROUNDTRIP_INVARIANT_B(uint256 amount) external {
+        uint256 addedShares = deposit(amount);
+        uint256 removedShares = withdraw(amount);
+        assertGe(removedShares, addedShares, ERC4626_ROUNDTRIP_INVARIANT_B);
+    }
+
+    function assert_ERC4626_ROUNDTRIP_INVARIANT_C(uint256 shares) external {
+        uint256 removedAssets = redeem(shares);
+        uint256 addedShares = deposit(removedAssets);
+        assertLe(addedShares, shares, ERC4626_ROUNDTRIP_INVARIANT_C);
+    }
+
+    function assert_ERC4626_ROUNDTRIP_INVARIANT_D(uint256 shares) external {
+        uint256 removedAssets = redeem(shares);
+        uint256 addedAssets = mint(shares);
+        assertGe(removedAssets, addedAssets, ERC4626_ROUNDTRIP_INVARIANT_D);
+    }
+
+    function assert_ERC4626_ROUNDTRIP_INVARIANT_E(uint256 shares) external {
+        uint256 addedAssets = mint(shares);
+        uint256 removedShares = withdraw(addedAssets);
+        assertGe(removedShares, shares, ERC4626_ROUNDTRIP_INVARIANT_E);
+    }
+
+    function assert_ERC4626_ROUNDTRIP_INVARIANT_F(uint256 shares) external {
+        uint256 addedAssets = mint(shares);
+        uint256 removedAssets = redeem(shares);
+        assertLe(removedAssets, addedAssets, ERC4626_ROUNDTRIP_INVARIANT_F);
+    }
+
+    function assert_ERC4626_ROUNDTRIP_INVARIANT_G(uint256 amount) external {
+        uint256 removedShares = withdraw(amount);
+        uint256 addedAssets = mint(removedShares);
+        assertGe(addedAssets, amount, ERC4626_ROUNDTRIP_INVARIANT_G);
+    }
+
+    function assert_ERC4626_ROUNDTRIP_INVARIANT_H(uint256 amount) external {
+        uint256 removedShares = withdraw(amount);
+        uint256 addedShares = deposit(amount);
+        assertLe(addedShares, removedShares, ERC4626_ROUNDTRIP_INVARIANT_H);
+    }
 }

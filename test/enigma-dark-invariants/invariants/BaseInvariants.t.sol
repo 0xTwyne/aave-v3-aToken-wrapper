@@ -72,4 +72,36 @@ abstract contract BaseInvariants is HandlerAggregator {
             fail(INV_AVAILABILITY_B);
         }
     }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    //                                      ERC4626 INVARIANTS                                   //
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    function assert_ERC4626_DEPOSIT_INVARIANT_A() internal {
+        try aaveV3ATokenWrapper.maxDeposit(address(0)) {}
+        catch {
+            fail(ERC4626_DEPOSIT_INVARIANT_A);
+        }
+    }
+
+    function assert_ERC4626_MINT_INVARIANT_A() internal {
+        try aaveV3ATokenWrapper.maxMint(address(0)) {}
+        catch {
+            fail(ERC4626_MINT_INVARIANT_A);
+        }
+    }
+
+    function assert_ERC4626_WITHDRAW_INVARIANT_A() internal {
+        try aaveV3ATokenWrapper.maxWithdraw(address(0)) {}
+        catch {
+            fail(ERC4626_WITHDRAW_INVARIANT_A);
+        }
+    }
+
+    function assert_ERC4626_REDEEM_INVARIANT_A() internal {
+        try aaveV3ATokenWrapper.maxRedeem(address(0)) {}
+        catch {
+            fail(ERC4626_REDEEM_INVARIANT_A);
+        }
+    }
 }
