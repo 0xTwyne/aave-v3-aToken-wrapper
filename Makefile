@@ -10,5 +10,8 @@ echidna-explore:
 medusa:
 	medusa fuzz --config ./medusa.json
 # Echidna Results
-runes:
-	runes convert ./test/enigma-dark-invariants/_corpus/echidna/default/_data/corpus/reproducers --output ./test/enigma-dark-invariants/replays
+runes-echidna:
+	runes convert ./test/enigma-dark-invariants/_corpus/echidna/default/_data/corpus/reproducers --output ./test/enigma-dark-invariants/replays --template ./test/enigma-dark-invariants/_config/templates/twyne-runes.tmpl
+runes-medusa:
+	runes convert ./test/enigma-dark-invariants/_corpus/medusa/test_results --output ./test/enigma-dark-invariants/replays --template ./test/enigma-dark-invariants/_config/templates/twyne-runes.tmpl
+	

@@ -48,6 +48,9 @@ contract Setup is BaseTest {
 
         // Deploy protocol contracts and protocol actors
         _deployProtocolCore();
+
+        // Deploy actors
+        _setUpActors();
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////

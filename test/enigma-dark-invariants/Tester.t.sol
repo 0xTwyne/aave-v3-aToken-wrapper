@@ -17,8 +17,5 @@ contract Tester is Invariants, Setup {
     function setUp() internal {
         // Deploy protocol contracts and protocol actors
         _setUp();
-
-        // Deploy actors
-        _setUpActors();
     }
 }

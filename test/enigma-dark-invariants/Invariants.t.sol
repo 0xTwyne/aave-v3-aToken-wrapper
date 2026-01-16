@@ -38,4 +38,14 @@ abstract contract Invariants is BaseInvariants {
 
         return true;
     }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    //                                   	    	UTILS                                        //
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    function _checkInvariants() internal {
+        invariant_INV_ERC4626();
+        invariant_INV_ATOKEN();
+        invariant_INV_AVAILABILITY();
+    }
 }

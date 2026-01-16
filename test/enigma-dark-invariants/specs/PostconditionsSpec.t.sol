@@ -26,7 +26,7 @@ abstract contract PostconditionsSpec {
     //                                         ERC4626                                           //
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
-    string constant GPOST_ERC4626_A = "GPOST_ERC4626_A: The exchange rate assets/shares should increase monotonically"; // TODO
+    string constant GPOST_ERC4626_A = "GPOST_ERC4626_A: The exchange rate assets/shares should increase monotonically";
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
     //                                          ATOKEN                                           //

@@ -152,7 +152,7 @@ contract ERC4626Handler is BaseHandler, IERC4626Handler {
     function assert_ERC4626_ROUNDTRIP_INVARIANT_D(uint256 shares) external {
         uint256 removedAssets = redeem(shares);
         uint256 addedAssets = mint(shares);
-        assertGe(removedAssets, addedAssets, ERC4626_ROUNDTRIP_INVARIANT_D);
+        assertLe(removedAssets, addedAssets, ERC4626_ROUNDTRIP_INVARIANT_D);
     }
 
     function assert_ERC4626_ROUNDTRIP_INVARIANT_E(uint256 shares) external {

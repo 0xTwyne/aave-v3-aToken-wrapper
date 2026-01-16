@@ -12,17 +12,17 @@ import {Setup} from "../Setup.t.sol";
 // Utils
 import {Actor} from "../utils/Actor.sol";
 
-contract ReplayTest1 is Invariants, Setup {
+contract ReplayTest3 is Invariants, Setup {
     // Generated from Echidna reproducers
 
     // Target contract instance (you may need to adjust this)
-    ReplayTest1 Tester = this;
+    ReplayTest3 Tester = this;
 
     modifier setup() override {
         _;
     }
 
-	function setUp() public {
+    function setUp() public {
         // Etch the create2 factory
         _etchCreate2Factory();
 
@@ -33,38 +33,20 @@ contract ReplayTest1 is Invariants, Setup {
         actor = actors[USER1];
     }
 
-	///////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
     //                                   		REPLAY TESTS                                     //
     ///////////////////////////////////////////////////////////////////////////////////////////////
-    
-    
-    function test_replay_1_rebalanceATokens_CV() public {
+
+    function test_replay_3_rebalanceATokens_CV() public {
         _setUpActor(USER1);
-        Tester.aave_supply(22712, 0);
+        Tester.aave_supply(19345, 0);
         Tester.aave_supply(2, 1);
-        Tester.depositATokens(101730958244318843076968, 0);
-        Tester.aave_borrow(21500, 0);
+        Tester.depositATokens(12924, 0);
+        Tester.aave_borrow(16849, 0);
         _delay(966509);
-        Tester.rebalanceATokens_CV(2);
-        
-    }
-    
-    function test_replay_1_setLatestAnswer() public {
-        _setUpActor(USER1);
-        Tester.setLatestAnswer(817750159926398873, 1);
+        Tester.rebalanceATokens_CV(1);
         _checkInvariants();
     }
-    
-    function test_replay_1_depositWithPermit() public {
-        _setUpActor(USER1);
-        Tester.aave_supply(2, 0);
-        Tester.aave_supply(2, 1);
-        Tester.aave_borrow(1, 0);
-        _delay(1);
-        Tester.depositWithPermit(7024725750834853511895836, false, 0);
-        
-    }
-    
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
     //                                           HELPERS                                         //
@@ -99,4 +81,4 @@ contract ReplayTest1 is Invariants, Setup {
         vm.warp(_timestamp);
         actor = actors[_user];
     }
-} 
+}

@@ -16,11 +16,13 @@ contract PriceAggregatorHandler is BaseHandler {
     //                                          ACTIONS                                          //
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
-    function setLatestAnswer(int256 _price, uint8 i) external {
+    function setLatestAnswer(uint256 _price, uint8 i) external {
+        require(_price < uint256(type(int256).max) && _price > 0, "Price must be less than int256.max and greater than 0");
+
         // Get a random price aggregator
         address priceAggregator = _getRandomPriceAggregator(i);
 
-        MockAggregatorSetPrice(priceAggregator).setLatestAnswer(_price);
+        MockAggregatorSetPrice(priceAggregator).setLatestAnswer(int256(_price));
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
