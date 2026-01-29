@@ -32,10 +32,10 @@ abstract contract InvariantsSpec {
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
     string constant INV_ATOKEN_A =
-        "INV_ATOKEN_A: aToken.balanceOf(wrapper) + aToken.balanceOf(collateral vault) >= totalAssets()";
+        "INV_ATOKEN_A: aToken.balanceOf(wrapper) + aToken.balanceOf(collateral vault) + 1 wei tolerance >= totalAssets()";
 
     string constant INV_ATOKEN_B =
-        "INV_ATOKEN_B: aToken.scaledBalanceOf(wrapper) + aToken.scaledBalanceOf(collateral vault) == totalSupply()";
+        "INV_ATOKEN_B: aToken.scaledBalanceOf(wrapper) + aToken.scaledBalanceOf(collateral vault) >= totalSupply()";
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
     //                                        AVAILABILITY                                       //

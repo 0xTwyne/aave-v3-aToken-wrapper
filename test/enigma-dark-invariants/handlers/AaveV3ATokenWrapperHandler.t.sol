@@ -64,11 +64,6 @@ contract AaveV3ATokenWrapperHandler is BaseHandler, IAaveV3ATokenWrapperHandler 
 
         if (success) {
             _after();
-
-            console.log("defaultVarsBefore.totalAssets", defaultVarsBefore.totalAssets);
-            console.log("defaultVarsBefore.totalSupply", defaultVarsBefore.totalSupply);
-            console.log("defaultVarsAfter.totalAssets", defaultVarsAfter.totalAssets);
-            console.log("defaultVarsAfter.totalSupply", defaultVarsAfter.totalSupply);
         } else {
             revert("AaveV3ATokenWrapperHandler: depositWithPermit failed");
         }

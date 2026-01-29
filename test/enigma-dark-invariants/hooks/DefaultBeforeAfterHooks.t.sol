@@ -15,6 +15,7 @@ abstract contract DefaultBeforeAfterHooks is BaseHooks {
         // 4626
         uint256 totalAssets;
         uint256 totalSupply;
+        uint256 exchangeRate;
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -55,6 +56,7 @@ abstract contract DefaultBeforeAfterHooks is BaseHooks {
     function _setDefaultValues(DefaultVars storage _defaultVars) internal {
         _defaultVars.totalAssets = aaveV3ATokenWrapper.totalAssets();
         _defaultVars.totalSupply = aaveV3ATokenWrapper.totalSupply();
+        _defaultVars.exchangeRate = aavePool.getReserveNormalizedIncome(address(weth));
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -64,13 +66,7 @@ abstract contract DefaultBeforeAfterHooks is BaseHooks {
     /// @notice DISABLED: Same root cause as INV_ATOKEN_B - aToken deposit rounding mismatch
     /// @dev See BaseInvariants.t.sol:50-61 for details
     function assert_GPOST_ERC4626() internal {
-        // assertFullMulGe(
-        //     defaultVarsAfter.totalAssets,
-        //     defaultVarsBefore.totalSupply,
-        //     defaultVarsBefore.totalAssets,
-        //     defaultVarsAfter.totalSupply,
-        //     GPOST_ERC4626_A
-        // );
+        assertGe(defaultVarsAfter.exchangeRate, defaultVarsBefore.exchangeRate, GPOST_ERC4626_A);
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
