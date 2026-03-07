@@ -11,7 +11,7 @@ import {MockCollateralVaultFactory} from "./AaveV3ATokenWrapper.t.sol";
 import {IAToken} from "aave-v3/interfaces/IAToken.sol";
 
 // Mock implementation for testing upgrades
-contract AaveV3ATokenWrapperV2 is AaveV3ATokenWrapper {
+contract AaveV3ATokenWrapperV3 is AaveV3ATokenWrapper {
     constructor(
         address _evc,
         address _collateralVaultFactory,
@@ -21,12 +21,12 @@ contract AaveV3ATokenWrapperV2 is AaveV3ATokenWrapper {
 
     // Override version to demonstrate upgrade
     function version() external pure override returns (uint) {
-        return 2;
+        return 3;
     }
 
-    // New function in V2
+    // New function in V3
     function newFeature() external pure returns (string memory) {
-        return "This is a new feature in V2";
+        return "This is a new feature in V3";
     }
 }
 
@@ -97,12 +97,12 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
         assertEq(proxy.name(), "UUPS Test Wrapper");
         assertEq(proxy.symbol(), "UUPS-WRAP");
         assertEq(proxy.owner(), owner);
-        assertEq(proxy.version(), 1);
+        assertEq(proxy.version(), 2);
     }
 
-    function test_upgradeToV2() public {
-        // Deploy V2 implementation
-        address implementationV2 = address(new AaveV3ATokenWrapperV2(
+    function test_upgradeToV3() public {
+        // Deploy V3 implementation
+        address implementationV3 = address(new AaveV3ATokenWrapperV3(
             EVC,
             address(collateralVaultFactory),
             aavePool,
@@ -112,14 +112,14 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
         // Try to upgrade as non-owner (should fail)
         vm.prank(alice);
         vm.expectRevert();
-        proxy.upgradeToAndCall(implementationV2, "");
+        proxy.upgradeToAndCall(implementationV3, "");
 
         // Upgrade as owner
         vm.prank(owner);
-        proxy.upgradeToAndCall(implementationV2, "");
+        proxy.upgradeToAndCall(implementationV3, "");
 
         // Check upgrade was successful
-        assertEq(proxy.version(), 2);
+        assertEq(proxy.version(), 3);
 
         // Check that state is preserved
         assertEq(proxy.name(), "UUPS Test Wrapper");
@@ -127,8 +127,8 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
         assertEq(proxy.owner(), owner);
 
         // Check new feature is available
-        AaveV3ATokenWrapperV2 proxyV2 = AaveV3ATokenWrapperV2(address(proxy));
-        assertEq(proxyV2.newFeature(), "This is a new feature in V2");
+        AaveV3ATokenWrapperV3 proxyV3 = AaveV3ATokenWrapperV3(address(proxy));
+        assertEq(proxyV3.newFeature(), "This is a new feature in V3");
     }
 
     function test_storageConsistencyAfterUpgrade() public {
@@ -143,8 +143,8 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
         uint256 balanceBefore = proxy.balanceOf(alice);
         uint256 totalAssetsBefore = proxy.totalAssets();
 
-        // Upgrade to V2
-        address implementationV2 = address(new AaveV3ATokenWrapperV2(
+        // Upgrade to V3
+        address implementationV3 = address(new AaveV3ATokenWrapperV3(
             EVC,
             address(collateralVaultFactory),
             aavePool,
@@ -152,7 +152,7 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
         ));
 
         vm.prank(owner);
-        proxy.upgradeToAndCall(implementationV2, "");
+        proxy.upgradeToAndCall(implementationV3, "");
 
         // Check that balances are preserved
         assertEq(proxy.balanceOf(alice), balanceBefore);
@@ -169,8 +169,8 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
     }
 
     function test_cannotReinitializeAfterUpgrade() public {
-        // Deploy V2 implementation
-        address implementationV2 = address(new AaveV3ATokenWrapperV2(
+        // Deploy V3 implementation
+        address implementationV3 = address(new AaveV3ATokenWrapperV3(
             EVC,
             address(collateralVaultFactory),
             aavePool,
@@ -179,7 +179,7 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
 
         // Upgrade
         vm.prank(owner);
-        proxy.upgradeToAndCall(implementationV2, "");
+        proxy.upgradeToAndCall(implementationV3, "");
 
         // Try to reinitialize (should fail)
         vm.expectRevert();
@@ -199,7 +199,7 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
     }
 
     function test_onlyOwnerCanUpgrade() public {
-        address implementationV2 = address(new AaveV3ATokenWrapperV2(
+        address implementationV3 = address(new AaveV3ATokenWrapperV3(
             EVC,
             address(collateralVaultFactory),
             aavePool,
@@ -209,7 +209,7 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
         // Random user cannot upgrade
         vm.prank(alice);
         vm.expectRevert();
-        proxy.upgradeToAndCall(implementationV2, "");
+        proxy.upgradeToAndCall(implementationV3, "");
 
         // Transfer ownership
         vm.prank(owner);
@@ -217,8 +217,8 @@ contract AaveV3ATokenWrapperUpgradeTest is Test {
 
         // Now alice can upgrade
         vm.prank(alice);
-        proxy.upgradeToAndCall(implementationV2, "");
+        proxy.upgradeToAndCall(implementationV3, "");
 
-        assertEq(proxy.version(), 2);
+        assertEq(proxy.version(), 3);
     }
 }

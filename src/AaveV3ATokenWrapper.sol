@@ -65,7 +65,7 @@ contract AaveV3ATokenWrapper is
     /// @notice Returns the current implementation version
     /// @return Version string
     function version() external pure virtual returns (uint) {
-        return 1;
+        return 2;
     }
 
     function _msgSender() internal view override(ContextUpgradeable, EVCUtil) returns (address) {
@@ -131,11 +131,8 @@ contract AaveV3ATokenWrapper is
         uint256 assets = __asset.balanceOf(address(this));
 
         uint256 shares = _convertToShares(assets, Math.Rounding.Floor);
-
         require(shares > 0, StaticATokenInvalidZeroShares());
 
-        // Supply to Aave (wrapper gets aTokens)
-        __asset.approve(address(POOL), assets);
         POOL.supply(address(__asset), assets, address(this), 0);
 
         _mint(receiver, shares);
