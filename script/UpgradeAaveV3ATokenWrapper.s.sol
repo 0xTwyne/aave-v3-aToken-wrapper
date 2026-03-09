@@ -3,7 +3,6 @@ pragma solidity ^0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
 import {AaveV3ATokenWrapper} from "../src/AaveV3ATokenWrapper.sol";
-import {AaveV3ATokenWrapperMigration} from "../src/AaveV3ATokenWrapperMigration.sol";
 import {IRewardsController, IPool as IAaveV3Pool} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
 import {AToken} from "aave-v3/protocol/tokenization/AToken.sol";
 import {IAToken} from "aave-v3/interfaces/IAToken.sol";
@@ -66,13 +65,6 @@ contract UpgradeAaveV3ATokenWrapper is Script {
 
         vm.startBroadcast(deployer);
 
-        address migrationImplementation = address(new AaveV3ATokenWrapperMigration(
-            evc,
-            collateralVaultFactory,
-            aavePoolContract,
-            IRewardsController(address(AToken(wstethAToken).REWARDS_CONTROLLER()))
-        ));
-
         newImplementation = address(new AaveV3ATokenWrapper(
             evc,
             collateralVaultFactory,
@@ -80,10 +72,7 @@ contract UpgradeAaveV3ATokenWrapper is Script {
             IRewardsController(address(AToken(wstethAToken).REWARDS_CONTROLLER()))
         ));
 
-        proxy.upgradeToAndCall(
-            migrationImplementation,
-            abi.encodeCall(AaveV3ATokenWrapperMigration.migrateToFinal, (newImplementation))
-        );
+        proxy.upgradeToAndCall(newImplementation, abi.encodeCall(AaveV3ATokenWrapper.approvePool, ()));
 
         require(
             address(proxy.collateralVaultFactory()) == collateralVaultFactory,
