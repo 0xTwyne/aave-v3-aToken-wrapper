@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 import {Script, console} from "forge-std/Script.sol";
 import {AaveV3ATokenWrapper} from "../src/AaveV3ATokenWrapper.sol";
 import {IRewardsController, IPool as IAaveV3Pool} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AToken} from "aave-v3/protocol/tokenization/AToken.sol";
 import {IAToken} from "aave-v3/interfaces/IAToken.sol";
 
@@ -18,8 +17,11 @@ contract UpgradeAaveV3ATokenWrapper is Script {
     address wsteth;
 
     error UnknownProfile();
+    error WrapperFactoryMismatch(address actualFactory);
+    error WrapperEVCMismatch(address actualEVC);
+    error FactoryEVCMismatch(address actualEVC);
 
-    function run(address proxyAddress) external returns (address newImplementation) {
+    function run() external returns (address newImplementation) {
         // Set chain-specific addresses
         if (block.chainid == 1) {
             // Ethereum Mainnet
@@ -39,10 +41,18 @@ contract UpgradeAaveV3ATokenWrapper is Script {
 
         address deployer = vm.envAddress("DEPLOYER_ADDRESS");
 
-        string memory addressesJson = vm.readFile("TwyneAddresses_output.json");
+        string memory addressesJson = vm.readFile(_deploymentAddressesPath());
+        address proxyAddress = vm.parseJsonAddress(addressesJson, ".aTokenWrappers.awstETH");
         address collateralVaultFactory = vm.parseJsonAddress(addressesJson, ".collateralVaultFactory");
+        address evc = vm.parseJsonAddress(addressesJson, ".evc");
+        AaveV3ATokenWrapper proxy = AaveV3ATokenWrapper(proxyAddress);
 
-        address evc = ICollateralVaultFactory(collateralVaultFactory).EVC();
+        require(
+            address(proxy.collateralVaultFactory()) == collateralVaultFactory,
+            WrapperFactoryMismatch(address(proxy.collateralVaultFactory()))
+        );
+        require(proxy.EVC() == evc, WrapperEVCMismatch(proxy.EVC()));
+        require(ICollateralVaultFactory(collateralVaultFactory).EVC() == evc, FactoryEVCMismatch(ICollateralVaultFactory(collateralVaultFactory).EVC()));
 
         // Fetch WSTETH aToken address dynamically from Aave protocol
         IAaveV3Pool aavePoolContract = IAaveV3Pool(aavePool);
@@ -62,14 +72,29 @@ contract UpgradeAaveV3ATokenWrapper is Script {
             IRewardsController(address(AToken(wstethAToken).REWARDS_CONTROLLER()))
         ));
 
-        AaveV3ATokenWrapper proxy = AaveV3ATokenWrapper(proxyAddress);
-        proxy.upgradeToAndCall(newImplementation, "");
+        proxy.upgradeToAndCall(newImplementation, abi.encodeCall(AaveV3ATokenWrapper.approvePool, ()));
+
+        require(
+            address(proxy.collateralVaultFactory()) == collateralVaultFactory,
+            WrapperFactoryMismatch(address(proxy.collateralVaultFactory()))
+        );
+        require(proxy.EVC() == evc, WrapperEVCMismatch(proxy.EVC()));
 
         vm.stopBroadcast();
 
         logUpgrade(proxyAddress, newImplementation, evc, collateralVaultFactory);
 
         return newImplementation;
+    }
+
+    function _deploymentAddressesPath() internal view returns (string memory) {
+        if (block.chainid == 1) {
+            return "../tech-notes/public-launch-addresses/TwyneAddresses_current_1.json";
+        }
+        if (block.chainid == 8453) {
+            return "../tech-notes/base-test-addresses/TwyneAddresses_current_8453.json";
+        }
+        revert UnknownProfile();
     }
 
     function logUpgrade(

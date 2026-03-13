@@ -10,6 +10,7 @@ import {IAToken} from "aave-v3/interfaces/IAToken.sol";
 
 interface ICollateralVaultFactory {
     function EVC() external view returns (address);
+    function owner() external view returns (address);
 }
 
 contract DeployAaveV3ATokenWrapper is Script {
@@ -38,10 +39,10 @@ contract DeployAaveV3ATokenWrapper is Script {
         console.log("WSTETH:", wsteth);
 
         address deployer = vm.envAddress("DEPLOYER_ADDRESS");
-        address SAFE = vm.envAddress("ADMIN_ETH_ADDRESS");
 
         string memory addressesJson = vm.readFile("TwyneAddresses_output.json");
         address collateralVaultFactory = vm.parseJsonAddress(addressesJson, ".collateralVaultFactory");
+        address SAFE = ICollateralVaultFactory(collateralVaultFactory).owner();
 
         address evc = ICollateralVaultFactory(collateralVaultFactory).EVC();
 

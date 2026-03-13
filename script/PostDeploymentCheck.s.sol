@@ -10,8 +10,8 @@ import {IAToken} from "aave-v3/interfaces/IAToken.sol";
 import {IRewardsController, IPool as IAaveV3Pool} from "aave-v3/extensions/stata-token/StataTokenV2.sol";
 import {AToken} from "aave-v3/protocol/tokenization/AToken.sol";
 
-// Mock V2 implementation for testing upgrades
-contract AaveV3ATokenWrapperV2 is AaveV3ATokenWrapper {
+// Mock V3 implementation for testing upgrades
+contract AaveV3ATokenWrapperV3 is AaveV3ATokenWrapper {
     constructor(
         address _evc,
         address _collateralVaultFactory,
@@ -20,11 +20,11 @@ contract AaveV3ATokenWrapperV2 is AaveV3ATokenWrapper {
     ) AaveV3ATokenWrapper(_evc, _collateralVaultFactory, _aavePool, rewardsController) {}
 
     function version() external pure override returns (uint) {
-        return 2;
+        return 3;
     }
 
     function newFeature() external pure returns (string memory) {
-        return "This is a new feature in V2";
+        return "This is a new feature in V3";
     }
 }
 
@@ -43,12 +43,12 @@ contract PostDeploymentCheck is Script {
 
     error CheckFailed(string reason);
 
-    function run(address proxyAddress) external {
+    function run() external {
         // Load configuration
         loadConfiguration();
 
         // Initialize wrapper instance
-        wrapper = AaveV3ATokenWrapper(proxyAddress);
+        wrapper = AaveV3ATokenWrapper(0xFaBA8f777996C0C28fe9e6554D84cB30ca3e1881);
 
         // Run all checks
         runAllChecks();
@@ -257,7 +257,7 @@ contract PostDeploymentCheck is Script {
 
         // Check version
         uint256 version = wrapper.version();
-        require(version == 1, "Unexpected version");
+        require(version == 2, "Unexpected version");
 
         // Test upgrade functionality
         testUpgrade();
@@ -272,9 +272,9 @@ contract PostDeploymentCheck is Script {
         // Store original version
         uint256 originalVersion = wrapper.version();
 
-        // Deploy V2 implementation
+        // Deploy V3 implementation
         address aToken = wrapper.aToken();
-        address implementationV2 = address(new AaveV3ATokenWrapperV2(
+        address implementationV3 = address(new AaveV3ATokenWrapperV3(
             evc,
             collateralVaultFactory,
             IAaveV3Pool(expectedAavePool),
@@ -284,7 +284,7 @@ contract PostDeploymentCheck is Script {
         // Test that non-owner cannot upgrade
         address nonOwner = makeAddr("nonOwner");
         vm.startPrank(nonOwner);
-        try wrapper.upgradeToAndCall(implementationV2, "") {
+        try wrapper.upgradeToAndCall(implementationV3, "") {
             revert CheckFailed("Non-owner should not be able to upgrade");
         } catch {
             // Expected to revert
@@ -293,17 +293,17 @@ contract PostDeploymentCheck is Script {
 
         // Test that owner can upgrade
         vm.startPrank(expectedAdmin);
-        wrapper.upgradeToAndCall(implementationV2, "");
+        wrapper.upgradeToAndCall(implementationV3, "");
         vm.stopPrank();
 
         // Verify upgrade was successful
-        require(wrapper.version() == 2, "Upgrade failed - version not updated");
+        require(wrapper.version() == 3, "Upgrade failed - version not updated");
 
         // Test new feature is available
-        AaveV3ATokenWrapperV2 wrapperV2 = AaveV3ATokenWrapperV2(address(wrapper));
-        string memory newFeature = wrapperV2.newFeature();
+        AaveV3ATokenWrapperV3 wrapperV3 = AaveV3ATokenWrapperV3(address(wrapper));
+        string memory newFeature = wrapperV3.newFeature();
         require(
-            keccak256(bytes(newFeature)) == keccak256(bytes("This is a new feature in V2")),
+            keccak256(bytes(newFeature)) == keccak256(bytes("This is a new feature in V3")),
             "New feature not working"
         );
 

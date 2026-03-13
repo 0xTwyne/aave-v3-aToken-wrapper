@@ -7,6 +7,7 @@ import {ERC20PermitUpgradeable, IRewardsController, PausableUpgradeable, ERC4626
 import {CustomERC4626StataTokenUpgradeable} from "./CustomERC4626StataTokenUpgradeable.sol";
 import {OwnableUpgradeable, ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IERC20}  from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {UUPSUpgradeable}  from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IAToken} from "aave-v3/interfaces/IAToken.sol";
 
@@ -65,7 +66,7 @@ contract AaveV3ATokenWrapper is
     /// @notice Returns the current implementation version
     /// @return Version string
     function version() external pure virtual returns (uint) {
-        return 1;
+        return 2;
     }
 
     function _msgSender() internal view override(ContextUpgradeable, EVCUtil) returns (address) {
@@ -89,6 +90,11 @@ contract AaveV3ATokenWrapper is
     function setPaused(bool paused) external onlyOwner {
         if (paused) _pause();
         else _unpause();
+    }
+
+    /// @notice Restores the wrapper's max allowance to the Aave pool
+    function approvePool() external onlyOwner {
+        SafeERC20.forceApprove(IERC20(asset()), address(POOL), type(uint256).max);
     }
 
     function decimals()
@@ -131,11 +137,8 @@ contract AaveV3ATokenWrapper is
         uint256 assets = __asset.balanceOf(address(this));
 
         uint256 shares = _convertToShares(assets, Math.Rounding.Floor);
-
         require(shares > 0, StaticATokenInvalidZeroShares());
 
-        // Supply to Aave (wrapper gets aTokens)
-        __asset.approve(address(POOL), assets);
         POOL.supply(address(__asset), assets, address(this), 0);
 
         _mint(receiver, shares);
