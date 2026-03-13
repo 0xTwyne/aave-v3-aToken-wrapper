@@ -7,6 +7,7 @@ import {IRewardsController, IPool as IAaveV3Pool} from "aave-v3/extensions/stata
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {AToken} from "aave-v3/protocol/tokenization/AToken.sol";
 import {IAToken} from "aave-v3/interfaces/IAToken.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 interface ICollateralVaultFactory {
     function EVC() external view returns (address);
@@ -16,7 +17,7 @@ interface ICollateralVaultFactory {
 contract DeployAaveV3ATokenWrapper is Script {
     // Chain-specific addresses
     address aavePool;
-    address wsteth;
+    address ptToken = 0x9Bf45ab47747F4B4dD09B3C2c73953484b4eB375;
 
     error UnknownProfile();
 
@@ -25,18 +26,17 @@ contract DeployAaveV3ATokenWrapper is Script {
         if (block.chainid == 1) {
             // Ethereum Mainnet
             aavePool = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
-            wsteth = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
         } else if (block.chainid == 8453) {
             // Base
             aavePool = 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5;
-            wsteth = 0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452;
+            revert("only mainnet");
         } else {
             revert UnknownProfile();
         }
 
         console.log("Deploying on chain:", block.chainid);
         console.log("Aave Pool:", aavePool);
-        console.log("WSTETH:", wsteth);
+        console.log("PT Token:", ptToken);
 
         address deployer = vm.envAddress("DEPLOYER_ADDRESS");
 
@@ -46,14 +46,14 @@ contract DeployAaveV3ATokenWrapper is Script {
 
         address evc = ICollateralVaultFactory(collateralVaultFactory).EVC();
 
-        // Fetch WSTETH aToken address dynamically from Aave protocol
+        // Fetch PT token aToken address dynamically from Aave protocol
         IAaveV3Pool aavePoolContract = IAaveV3Pool(aavePool);
-        address wstethAToken = aavePoolContract.getReserveData(wsteth).aTokenAddress;
-        console.log("WSTETH aToken fetched from Aave:", wstethAToken);
+        address ptAToken = aavePoolContract.getReserveData(ptToken).aTokenAddress;
+        console.log("PT aToken fetched from Aave:", ptAToken);
 
         // Validate that the aToken has the correct underlying asset
-        require(IAToken(wstethAToken).UNDERLYING_ASSET_ADDRESS() == wsteth, "underlying asset not correct");
-        console.log("aToken validation: underlying asset matches WSTETH");
+        require(IAToken(ptAToken).UNDERLYING_ASSET_ADDRESS() == ptToken, "underlying asset not correct");
+        console.log("aToken validation: underlying asset matches PT token");
 
         vm.startBroadcast(deployer);
 
@@ -61,12 +61,20 @@ contract DeployAaveV3ATokenWrapper is Script {
             evc,
             collateralVaultFactory,
             aavePoolContract,
-            IRewardsController(address(AToken(wstethAToken).REWARDS_CONTROLLER()))
+            IRewardsController(address(AToken(ptAToken).REWARDS_CONTROLLER()))
         ));
+
+        string memory aTokenName = IERC20Metadata(ptAToken).name();
+        string memory aTokenSymbol = IERC20Metadata(ptAToken).symbol();
+        string memory wrapperName = string.concat("Wrapped ", aTokenName);
+        string memory wrapperSymbol = string.concat("w", aTokenSymbol);
+
+        console.log("Wrapper name:", wrapperName);
+        console.log("Wrapper symbol:", wrapperSymbol);
 
         bytes memory initData = abi.encodeCall(
             AaveV3ATokenWrapper.initialize,
-            (wstethAToken, SAFE, "Wrapped stataWSTETH", "wstataWSTETH")
+            (ptAToken, SAFE, wrapperName, wrapperSymbol)
         );
 
         proxy = address(new ERC1967Proxy(implementation, initData));
