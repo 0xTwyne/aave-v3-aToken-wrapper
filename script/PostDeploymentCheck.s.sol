@@ -48,7 +48,7 @@ contract PostDeploymentCheck is Script {
         loadConfiguration();
 
         // Initialize wrapper instance
-        wrapper = AaveV3ATokenWrapper(0xFaBA8f777996C0C28fe9e6554D84cB30ca3e1881);
+        wrapper = AaveV3ATokenWrapper(0x223d402b82D6b5c4f0B9bc0348960098228139EF);
 
         // Run all checks
         runAllChecks();
@@ -71,11 +71,8 @@ contract PostDeploymentCheck is Script {
 
         // Set expected mainnet addresses
         if (block.chainid == 1) {
-            expectedAToken = 0x0B925eD163218f6662a35e0f0371Ac234f9E9371; // aWSTETH
+            expectedAToken = 0x1241ec22C9BdF16BA1Eb636F2a8de7e28A4343Cf; // aPT_srUSDe_2APR2026
             expectedAavePool = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
-        } else if (block.chainid == 8453) { // Base
-            expectedAToken = 0x99CBC45ea5bb7eF3a5BC08FB1B7E56bB2442Ef0D; // aWSTETH
-            expectedAavePool = 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5;
         } else {
             revert CheckFailed("Unsupported chain");
         }
@@ -221,6 +218,8 @@ contract PostDeploymentCheck is Script {
         uint256 rate = wrapper.POOL().getReserveNormalizedIncome(wrapper.asset());
         uint256 RAY = 1e27;
 
+        require(rate == RAY, "emode pt token is collateral only");
+
         uint256 testAmount = 1e18;
         uint256 expectedShares = (testAmount * RAY) / rate;
         uint256 expectedAssets = (testAmount * rate) / RAY;
@@ -233,10 +232,10 @@ contract PostDeploymentCheck is Script {
 
         // convertToShares(assets) should be > 0 and < assets (due to accumulated interest rate > RAY)
         require(actualShares > 0, "convertToShares should be > 0");
-        require(actualShares < testAmount, "convertToShares should be < assets due to rate > RAY");
+        require(actualShares == testAmount, "convertToShares should be == assets due to rate == RAY");
 
         // convertToAssets(shares) should be > shares (due to accumulated interest)
-        require(actualAssets > testAmount, "convertToAssets should be > shares due to rate > RAY");
+        require(actualAssets == testAmount, "convertToAssets should be > shares due to rate == RAY");
 
         console.log("  [PASS] ERC4626 functions operational");
     }
