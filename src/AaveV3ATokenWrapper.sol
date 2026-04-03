@@ -64,7 +64,7 @@ contract AaveV3ATokenWrapper is
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /// @notice Returns the current implementation version
-    /// @return Version string
+    /// @return Version number
     function version() external pure virtual returns (uint) {
         return 2;
     }
@@ -103,7 +103,7 @@ contract AaveV3ATokenWrapper is
         override(ERC20Upgradeable, ERC4626Upgradeable)
         returns (uint8)
     {
-        /// @notice The initialization of ERC4626Upgradeable already assures that decimal are
+        /// @notice The initialization of ERC4626Upgradeable already assures that decimals are
         /// the same as the underlying asset of the StataTokenV2, e.g. decimals of WETH for stataWETH
         return ERC4626Upgradeable.decimals();
     }
