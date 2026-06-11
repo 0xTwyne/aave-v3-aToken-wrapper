@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {AaveV3ATokenWrapper, IRewardsController} from "src/AaveV3ATokenWrapper.sol";
+import {AaveV3ATokenWrapper, IRewardsController, CallerNotAdmin, CallerNotOwnerOrPauseGuardian, ZeroAddress} from "src/AaveV3ATokenWrapper.sol";
 import {IPool} from "aave-v3/interfaces/IPool.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -165,7 +165,7 @@ contract AaveV3ATokenWrapperUnitTest is Test {
         tokenWrapper.approvePool();
 
         assertEq(underlying.allowance(address(tokenWrapper), address(pool)), type(uint256).max, "approvePool should restore max allowance");
-        assertEq(tokenWrapper.version(), 2, "Proxy should stay on the clean V2 implementation");
+        assertEq(tokenWrapper.version(), 3, "Proxy should stay on the clean V3 implementation");
 
         underlying.mint(bob, depositAmount);
         vm.startPrank(bob);
@@ -180,5 +180,72 @@ contract AaveV3ATokenWrapperUnitTest is Test {
         vm.prank(alice);
         vm.expectRevert();
         tokenWrapper.approvePool();
+    }
+
+    function test_initialize_setsOwnerAsAdmin() public view {
+        assertEq(tokenWrapper.owner(), owner, "owner should be initialized");
+        assertEq(tokenWrapper.admin(), owner, "admin should default to owner");
+        assertEq(tokenWrapper.pauseGuardian(), owner, "pause guardian should default to owner");
+        assertEq(tokenWrapper.version(), 3, "implementation version should be updated");
+    }
+
+    function test_pauseGuardianCanPauseButCannotUnpause() public {
+        address pauseGuardian = makeAddr("pauseGuardian");
+
+        tokenWrapper.setPauseGuardian(pauseGuardian);
+
+        vm.prank(pauseGuardian);
+        tokenWrapper.pause();
+        assertTrue(tokenWrapper.paused(), "guardian should pause");
+
+        vm.prank(pauseGuardian);
+        vm.expectRevert(CallerNotAdmin.selector);
+        tokenWrapper.unpause();
+
+        tokenWrapper.unpause();
+        assertFalse(tokenWrapper.paused(), "admin should unpause");
+    }
+
+    function test_pauseRevertsForNonAdminAndNonGuardian() public {
+        vm.prank(alice);
+        vm.expectRevert(CallerNotOwnerOrPauseGuardian.selector);
+        tokenWrapper.pause();
+    }
+
+    function test_setAdmin_onlyOwnerAndRejectsZero() public {
+        vm.expectRevert(ZeroAddress.selector);
+        tokenWrapper.setAdmin(address(0));
+
+        vm.prank(alice);
+        vm.expectRevert();
+        tokenWrapper.setAdmin(bob);
+
+        tokenWrapper.setAdmin(alice);
+        assertEq(tokenWrapper.admin(), alice, "owner should update admin");
+
+        tokenWrapper.pause();
+        assertTrue(tokenWrapper.paused(), "owner should still pause as pause guardian");
+
+        vm.expectRevert(CallerNotAdmin.selector);
+        tokenWrapper.unpause();
+
+        vm.prank(alice);
+        tokenWrapper.unpause();
+        assertFalse(tokenWrapper.paused(), "new admin should unpause");
+
+        vm.prank(alice);
+        tokenWrapper.pause();
+        assertTrue(tokenWrapper.paused(), "new admin should pause");
+    }
+
+    function test_setPauseGuardian_onlyAdmin() public {
+        tokenWrapper.setAdmin(alice);
+
+        vm.expectRevert(CallerNotAdmin.selector);
+        tokenWrapper.setPauseGuardian(bob);
+
+        vm.prank(alice);
+        tokenWrapper.setPauseGuardian(bob);
+        assertEq(tokenWrapper.pauseGuardian(), bob, "admin should set pause guardian");
     }
 }

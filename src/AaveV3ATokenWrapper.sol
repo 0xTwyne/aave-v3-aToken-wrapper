@@ -20,6 +20,9 @@ interface ICollateralVaultFactory {
 error NotCollateralVault();
 error IncorrectEVC();
 error ZeroIncentivesControllerIsForbidden();
+error CallerNotOwnerOrPauseGuardian();
+error CallerNotAdmin();
+error ZeroAddress();
 
 /// @title AaveV3ATokenWrapper
 /// @notice ERC4626 wrapper for Aave V3 aTokens to convert rebasing tokens to non-rebasing shares
@@ -37,7 +40,14 @@ contract AaveV3ATokenWrapper is
     ICollateralVaultFactory public immutable collateralVaultFactory;
     IRewardsController public immutable INCENTIVES_CONTROLLER;
 
-    uint[50] internal __gap;
+    address public pauseGuardian;
+    address public admin;
+
+    uint[48] internal __gap;
+
+    event T_SetAdmin(address indexed admin);
+    event T_SetPauseGuardian(address indexed pauseGuardian);
+    event T_WrapperPause(bool pause);
 
     constructor(
         address _evc,
@@ -66,11 +76,16 @@ contract AaveV3ATokenWrapper is
     /// @notice Returns the current implementation version
     /// @return Version string
     function version() external pure virtual returns (uint) {
-        return 2;
+        return 3;
     }
 
     function _msgSender() internal view override(ContextUpgradeable, EVCUtil) returns (address) {
         return EVCUtil._msgSender();
+    }
+
+    modifier onlyAdmin() {
+        require(_msgSender() == admin, CallerNotAdmin());
+        _;
     }
 
     function initialize(
@@ -85,11 +100,35 @@ contract AaveV3ATokenWrapper is
         __Pausable_init();
         __Ownable_init(owner);
         __UUPSUpgradeable_init();
+        admin = owner;
+        pauseGuardian = owner;
     }
 
-    function setPaused(bool paused) external onlyOwner {
-        if (paused) _pause();
-        else _unpause();
+    /// @notice Set the operational admin. Owner-only so this path can be timelocked.
+    function setAdmin(address _admin) external onlyOwner {
+        require(_admin != address(0), ZeroAddress());
+        admin = _admin;
+        emit T_SetAdmin(_admin);
+    }
+
+    /// @notice Set a dedicated pause guardian that can only trigger emergency pauses.
+    function setPauseGuardian(address _pauseGuardian) external onlyAdmin {
+        pauseGuardian = _pauseGuardian;
+        emit T_SetPauseGuardian(_pauseGuardian);
+    }
+
+    /// @dev pause deposits, withdrawals, transfers, and CV rebalancing.
+    function pause() external {
+        address sender = _msgSender();
+        require(sender == admin || sender == pauseGuardian, CallerNotOwnerOrPauseGuardian());
+        _pause();
+        emit T_WrapperPause(true);
+    }
+
+    /// @dev unpause deposits, withdrawals, transfers, and CV rebalancing.
+    function unpause() external onlyAdmin {
+        _unpause();
+        emit T_WrapperPause(false);
     }
 
     /// @notice Restores the wrapper's max allowance to the Aave pool

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {IRewardsController, AaveV3ATokenWrapper, NotCollateralVault, ZeroIncentivesControllerIsForbidden} from "src/AaveV3ATokenWrapper.sol";
+import {IRewardsController, AaveV3ATokenWrapper, NotCollateralVault, ZeroIncentivesControllerIsForbidden, CallerNotAdmin, CallerNotOwnerOrPauseGuardian} from "src/AaveV3ATokenWrapper.sol";
 import {IPool} from "aave-v3/interfaces/IPool.sol";
 import {IERC20}  from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20}  from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -271,14 +271,19 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
     function test_pauseUnpause() public {
         aave_createDeposit();
 
-        // Only owner can pause
-        vm.prank(alice);
-        vm.expectRevert();
-        tokenWrapper.setPaused(true);
+        address pauseGuardian = makeAddr("pauseGuardian");
 
-        // Owner pauses
-        vm.prank(address(this));
-        tokenWrapper.setPaused(true);
+        // Only admin can configure the pause guardian.
+        vm.prank(alice);
+        vm.expectRevert(CallerNotAdmin.selector);
+        tokenWrapper.setPauseGuardian(pauseGuardian);
+
+        tokenWrapper.setPauseGuardian(pauseGuardian);
+        assertEq(tokenWrapper.pauseGuardian(), pauseGuardian);
+
+        // Guardian can pause.
+        vm.prank(pauseGuardian);
+        tokenWrapper.pause();
         assertTrue(tokenWrapper.paused());
 
         // Operations should fail when paused
@@ -287,9 +292,12 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         tokenWrapper.deposit(1e18, alice);
         vm.stopPrank();
 
-        // Owner unpauses
-        vm.prank(address(this));
-        tokenWrapper.setPaused(false);
+        // Guardian cannot unpause; only admin can.
+        vm.prank(pauseGuardian);
+        vm.expectRevert(CallerNotAdmin.selector);
+        tokenWrapper.unpause();
+
+        tokenWrapper.unpause();
         assertFalse(tokenWrapper.paused());
 
         // Operations should work again
@@ -341,7 +349,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
 
         // When paused, deposits should revert (not necessarily return 0)
         vm.prank(address(this));
-        tokenWrapper.setPaused(true);
+        tokenWrapper.pause();
 
         // Try to deposit when paused - should revert
         vm.startPrank(alice);
@@ -359,7 +367,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
 
         // When paused, minting should revert (not necessarily return 0)
         vm.prank(address(this));
-        tokenWrapper.setPaused(true);
+        tokenWrapper.pause();
 
         // Try to mint when paused - should revert
         vm.startPrank(alice);
@@ -579,18 +587,27 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
     // Test owner functions
     function test_ownershipTransfer() public {
         address newOwner = makeAddr("newOwner");
+        address newAdmin = makeAddr("newAdmin");
 
         // Transfer ownership
         tokenWrapper.transferOwnership(newOwner);
         assertEq(tokenWrapper.owner(), newOwner);
+        assertEq(tokenWrapper.admin(), address(this));
 
-        // Old owner can't pause anymore
-        vm.expectRevert();
-        tokenWrapper.setPaused(true);
+        // Ownership transfer does not change operational admin.
+        tokenWrapper.pause();
+        assertTrue(tokenWrapper.paused());
+        tokenWrapper.unpause();
 
-        // New owner can pause
         vm.prank(newOwner);
-        tokenWrapper.setPaused(true);
+        tokenWrapper.setAdmin(newAdmin);
+        assertEq(tokenWrapper.admin(), newAdmin);
+
+        vm.expectRevert(CallerNotOwnerOrPauseGuardian.selector);
+        tokenWrapper.pause();
+
+        vm.prank(newAdmin);
+        tokenWrapper.pause();
         assertTrue(tokenWrapper.paused());
     }
 
@@ -1045,7 +1062,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
         // Set approval for transferFrom test before pausing
         tokenWrapper.approve(address(this), amount / 2);
 
-        tokenWrapper.setPaused(true);
+        tokenWrapper.pause();
 
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
         tokenWrapper.transfer(alice, amount / 2);
@@ -1081,7 +1098,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
 
         vm.stopPrank();
 
-        tokenWrapper.setPaused(true);
+        tokenWrapper.pause();
 
         vm.prank(vault);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
@@ -1103,7 +1120,7 @@ contract AaveV3ATokenWrapperTest is Test, TestnetProcedures {
 
         vm.stopPrank();
 
-        tokenWrapper.setPaused(true);
+        tokenWrapper.pause();
 
         vm.prank(vault);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));

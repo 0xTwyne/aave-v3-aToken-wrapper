@@ -1,15 +1,15 @@
 {
   "lib/aave-v3-origin": {
-    "tag": {
-      "name": "v3.5.0",
-      "rev": "6138e1fda45884b6547d094a1ddeef43dcab4977"
-    }
+    "rev": "d7919c0204cb26856fbd087b2e1c6d62a8916e3a"
   },
   "lib/ethereum-vault-connector": {
     "tag": {
       "name": "v1.0.1",
       "rev": "a7d3c29ef7e4964736e47675e0588630d6afbfd7"
     }
+  },
+  "lib/forge-safe": {
+    "rev": "76344f152e800857e4222da0a0aa54e8756d36c4"
   },
   "lib/forge-std": {
     "tag": {
