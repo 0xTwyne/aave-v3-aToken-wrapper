@@ -7,3 +7,6 @@
 [submodule "lib/ethereum-vault-connector"]
 	path = lib/ethereum-vault-connector
 	url = https://github.com/euler-xyz/ethereum-vault-connector
+[submodule "lib/forge-safe"]
+	path = lib/forge-safe
+	url = https://github.com/ind-igo/forge-safe
