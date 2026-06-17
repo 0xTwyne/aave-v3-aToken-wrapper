@@ -1,0 +1,17 @@
+# Echidna
+echidna:
+	echidna test/enigma-dark-invariants/Tester.t.sol --contract Tester --config ./test/enigma-dark-invariants/_config/echidna_config.yaml
+echidna-assert:
+	echidna test/enigma-dark-invariants/Tester.t.sol --contract Tester --test-mode assertion --config ./test/enigma-dark-invariants/_config/echidna_config.yaml
+echidna-explore:
+	echidna test/enigma-dark-invariants/Tester.t.sol --contract Tester --test-mode exploration --config ./test/enigma-dark-invariants/_config/echidna_config.yaml
+
+# Medusa
+medusa:
+	medusa fuzz --config ./medusa.json
+# Echidna Results
+runes-echidna:
+	runes convert ./test/enigma-dark-invariants/_corpus/echidna/default/_data/corpus/reproducers --output ./test/enigma-dark-invariants/replays --template ./test/enigma-dark-invariants/_config/templates/twyne-runes.tmpl
+runes-medusa:
+	runes convert ./test/enigma-dark-invariants/_corpus/medusa/test_results --output ./test/enigma-dark-invariants/replays --template ./test/enigma-dark-invariants/_config/templates/twyne-runes.tmpl
+	
